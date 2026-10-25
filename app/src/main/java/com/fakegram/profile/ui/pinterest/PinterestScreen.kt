@@ -76,6 +76,7 @@ import com.fakegram.profile.data.PinEntity
 import com.fakegram.profile.data.PinScreen
 import com.fakegram.profile.data.matchesQuery
 import com.fakegram.profile.data.normalizeTags
+import com.fakegram.profile.data.savedSearchMatches
 import com.fakegram.profile.data.tagList
 import com.fakegram.profile.data.toPinChips
 import com.fakegram.profile.data.toPinTabs
@@ -121,13 +122,12 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
     val allPins by app.repository.observeAllPins().collectAsState(initial = emptyList())
     val allPages by app.repository.pinterestPages.collectAsState(initial = emptyList())
     val q = query.trim().lowercase()
-    val searching = !edit && screen == PinScreen.SEARCH && q.isNotEmpty()
+    val searching = screen == PinScreen.SEARCH && q.isNotEmpty()
     val browsingBlank = !edit && screen == PinScreen.SEARCH && q.isEmpty()
     val shown = when {
         searching -> allPins.filter { pin ->
             pin.matchesQuery(q) || (pin.screen == PinScreen.SEARCH && allPages.any { pg ->
-                val sq = pg.searchQuery.trim().lowercase()
-                pg.id == pin.pageId && sq.isNotEmpty() && (sq.contains(q) || q.contains(sq))
+                pg.id == pin.pageId && pg.searchQuery.savedSearchMatches(q)
             })
         }
         browsingBlank -> emptyList()
@@ -170,25 +170,18 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
                     Modifier.weight(1f).height(56.dp).border(2.dp, if (dark) Color(0xFF555555) else Color(0xFF8E8E8E), RoundedCornerShape(28.dp)).padding(horizontal = 22.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (edit) {
-                        InlineField(
-                            p.searchQuery, { v -> vm.updatePage { it.copy(searchQuery = v.trim()) } },
-                            TextStyle(color = ink, fontSize = 20.sp), Modifier.weight(1f), placeholder = "Search for ideas", singleLine = true, cursorColor = ink
-                        )
-                    } else {
-                        BasicTextField(
-                            value = query, onValueChange = { query = it }, singleLine = true,
-                            textStyle = TextStyle(color = ink, fontSize = 20.sp), cursorBrush = SolidColor(ink),
-                            modifier = Modifier.weight(1f),
-                            decorationBox = { inner ->
-                                Box {
-                                    if (query.isEmpty()) Text("Search for ideas", style = TextStyle(color = Color(0x80808080), fontSize = 20.sp))
-                                    inner()
-                                }
+                    BasicTextField(
+                        value = query, onValueChange = { query = it }, singleLine = true,
+                        textStyle = TextStyle(color = ink, fontSize = 20.sp), cursorBrush = SolidColor(ink),
+                        modifier = Modifier.weight(1f),
+                        decorationBox = { inner ->
+                            Box {
+                                if (query.isEmpty()) Text("Search for ideas", style = TextStyle(color = Color(0x80808080), fontSize = 20.sp))
+                                inner()
                             }
-                        )
-                        if (query.isNotEmpty()) Icon(Icons.Filled.Close, "Clear", tint = ink, modifier = Modifier.size(24.dp).clickable { query = "" })
-                    }
+                        }
+                    )
+                    if (query.isNotEmpty()) Icon(Icons.Filled.Close, "Clear", tint = ink, modifier = Modifier.size(24.dp).clickable { query = "" })
                 }
                 Spacer(Modifier.width(14.dp))
                 Icon(Icons.Filled.Tune, null, tint = ink, modifier = Modifier.size(32.dp))
@@ -213,7 +206,8 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
 
         if (pendingUris.isNotEmpty()) {
             TagDialog(
-                title = "Tag these pictures", hint = "airi, idol, selfie", initial = "", confirm = "Add",
+                title = "Tag these pictures", hint = "airi, idol, selfie",
+                initial = if (screen == PinScreen.SEARCH) normalizeTags(query).replace(",", ", ") else "", confirm = "Add",
                 onSave = { raw ->
                     vm.addPins(pendingUris, screen, if (screen == PinScreen.SEARCH) 0L else activeTab?.id ?: 0L, normalizeTags(raw))
                     pendingUris = emptyList()

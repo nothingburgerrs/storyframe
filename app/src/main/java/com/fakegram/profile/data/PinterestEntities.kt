@@ -69,6 +69,17 @@ fun String.tagList(): List<String> = split(',').map { it.trim() }.filter { it.is
 fun normalizeTags(raw: String): String =
     raw.split(',', ' ', '\n', '#').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.distinct().joinToString(",")
 
+/**
+ * Does [query] find a results page that was set up under this search text? The whole text, the start of it
+ * (while still typing) or one of its words does; a word that merely appears inside a longer query does not.
+ */
+fun String.savedSearchMatches(query: String): Boolean {
+    val saved = trim().lowercase()
+    val q = query.trim().lowercase()
+    if (saved.isEmpty() || q.isEmpty()) return false
+    return saved == q || saved.startsWith(q) || saved.split(' ').any { it == q }
+}
+
 /** True when [query] is part of the title or of any tag, ignoring case. */
 fun PinEntity.matchesQuery(query: String): Boolean {
     val q = query.trim().lowercase()

@@ -219,10 +219,6 @@ fun ProfileScreen(
                                 DropdownMenuItem(text = { Text("Followed by") }, onClick = { menuExpanded = false; showFollowedByManager = true })
                                 DropdownMenuItem(text = { Text("Highlights") }, onClick = { menuExpanded = false; showHighlightsInfo = true })
                                 DropdownMenuItem(text = { Text("Settings") }, onClick = { menuExpanded = false; showSettingsSheet = true })
-                                DropdownMenuItem(
-                                    text = { Text(if (isVisitorMode) "Preview as yourself" else "Preview as visitor") },
-                                    onClick = { menuExpanded = false; isVisitorMode = !isVisitorMode }
-                                )
                             }
                             DropdownMenuItem(
                                 text = { Text("Save screenshot") },

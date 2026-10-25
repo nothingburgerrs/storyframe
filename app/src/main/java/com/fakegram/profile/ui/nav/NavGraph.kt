@@ -5,24 +5,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -32,11 +21,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -46,6 +34,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.fakegram.profile.data.ProfileRepository
+import com.fakegram.profile.media.MediaStorage
 import com.fakegram.profile.ui.bubble.BubbleChatScreen
 import com.fakegram.profile.ui.bubble.BubbleHomeScreen
 import com.fakegram.profile.ui.google.GoogleHomeScreen
@@ -63,7 +52,6 @@ import com.fakegram.profile.ui.post.PostViewerScreen
 import com.fakegram.profile.ui.profile.ProfileScreen
 import com.fakegram.profile.ui.youtube.YoutubeListScreen
 import com.fakegram.profile.ui.youtube.YoutubeWatchScreen
-import kotlin.math.roundToInt
 
 private const val ROUTE_PROFILE = "profile/{profileId}"
 private const val ROUTE_PANEL = "panel/{panelId}"
@@ -75,6 +63,7 @@ private const val ROUTE_YT_VIDEO = "video/{videoId}"
 @Composable
 fun StoryframeNavHost(repository: ProfileRepository) {
     val navController: NavHostController = rememberNavController()
+    val context = LocalContext.current
     var editing by rememberSaveable { mutableStateOf(true) }
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val onHome = currentRoute == null || currentRoute == PhoneRoutes.HOME
@@ -187,53 +176,34 @@ fun StoryframeNavHost(repository: ProfileRepository) {
                 composable(PhoneRoutes.PINTEREST) { PinterestHost(onBack = { navController.popBackStack() }) }
             }
 
-            if (!onHome) {
-                ModeButton(editing = editing, onToggle = { editing = !editing })
-                HomeBar(onHome = { goHome() })
-            }
+            // Nothing is drawn over the apps, so screenshots and screen recordings stay clean.
+            if (!onHome) HomeStrip(onHome = { goHome() }, onToggleMode = {
+                val next = !editing
+                editing = next
+                MediaStorage.toast(context, if (next) "Edit mode" else "View mode")
+            })
         }
     }
 }
 
-/** A small round button, always on top and draggable out of the way: tap it to switch between Edit and View. */
+/**
+ * An invisible strip just above the bottom edge: swipe it up to go home, hold it to switch between Edit and View
+ * (you feel a tap and a short message tells you which one you are in).
+ */
 @Composable
-private fun androidx.compose.foundation.layout.BoxScope.ModeButton(editing: Boolean, onToggle: () -> Unit) {
-    var offsetX by remember { mutableStateOf(0f) }
-    var offsetY by remember { mutableStateOf(0f) }
-    Box(
-        Modifier.align(Alignment.CenterEnd)
-            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-            .alpha(0.85f)
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(if (editing) Color(0xFF7A6CF0) else Color(0xCC2B2B2E))
-            .pointerInput(Unit) { detectTapGestures(onTap = { onToggle() }) }
-            .pointerInput(Unit) {
-                detectDragGestures { change, drag ->
-                    change.consume()
-                    offsetX += drag.x
-                    offsetY += drag.y
-                }
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            if (editing) Icons.Filled.Edit else Icons.Filled.Visibility,
-            contentDescription = if (editing) "Edit mode (tap for View)" else "View mode (tap for Edit)",
-            tint = Color.White, modifier = Modifier.size(20.dp)
-        )
-    }
-}
-
-/** The home bar at the bottom of a real phone: swipe it up (or tap it) to go back to the home screen. */
-@Composable
-private fun androidx.compose.foundation.layout.BoxScope.HomeBar(onHome: () -> Unit) {
+private fun androidx.compose.foundation.layout.BoxScope.HomeStrip(onHome: () -> Unit, onToggleMode: () -> Unit) {
+    val haptics = LocalHapticFeedback.current
     Box(
         Modifier.align(Alignment.BottomCenter)
             .navigationBarsPadding()
             .fillMaxWidth()
-            .height(12.dp)
-            .pointerInput(Unit) { detectTapGestures(onTap = { onHome() }) }
+            .height(14.dp)
+            .pointerInput(Unit) {
+                detectTapGestures(onLongPress = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onToggleMode()
+                })
+            }
             .pointerInput(Unit) {
                 var total = 0f
                 detectVerticalDragGestures(
@@ -241,11 +211,6 @@ private fun androidx.compose.foundation.layout.BoxScope.HomeBar(onHome: () -> Un
                     onVerticalDrag = { _, dy -> total += dy },
                     onDragEnd = { if (total < -40f) onHome() }
                 )
-            },
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Box(
-            Modifier.width(110.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color.Gray.copy(alpha = 0.55f))
-        )
-    }
+            }
+    )
 }
