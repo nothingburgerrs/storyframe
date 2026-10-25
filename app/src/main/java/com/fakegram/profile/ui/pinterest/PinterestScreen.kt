@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.pinterest
 
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,12 +26,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Person
@@ -38,9 +41,12 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -53,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -67,6 +74,9 @@ import com.fakegram.profile.data.PinChip
 import com.fakegram.profile.data.PinChipColors
 import com.fakegram.profile.data.PinEntity
 import com.fakegram.profile.data.PinScreen
+import com.fakegram.profile.data.matchesQuery
+import com.fakegram.profile.data.normalizeTags
+import com.fakegram.profile.data.tagList
 import com.fakegram.profile.data.toPinChips
 import com.fakegram.profile.data.toPinTabs
 import com.fakegram.profile.ui.components.CropShape
@@ -96,6 +106,9 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
     var screen by rememberSaveable { mutableStateOf(PinScreen.HOME) }
     var tabId by rememberSaveable { mutableStateOf(0L) }
     var addMenu by remember { mutableStateOf(false) }
+    // View mode: what is typed in the search bar. Edit mode: pictures waiting for their tags.
+    var query by rememberSaveable { mutableStateOf("") }
+    var pendingUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
 
     val p = page
     if (p == null) {
@@ -104,10 +117,12 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
     }
     val tabs = p.tabs.toPinTabs()
     val activeTab = tabs.firstOrNull { it.id == tabId } ?: tabs.firstOrNull()
-    val shown = pins.filter { it.screen == screen && (screen == PinScreen.SEARCH || it.tabId == (activeTab?.id ?: 0L)) }
+    val searching = !edit && screen == PinScreen.SEARCH && query.isNotBlank()
+    val shown = if (searching) pins.filter { it.matchesQuery(query) }
+    else pins.filter { it.screen == screen && (screen == PinScreen.SEARCH || it.tabId == (activeTab?.id ?: 0L)) }
 
     val addPhotos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(20)) { uris ->
-        if (uris.isNotEmpty()) vm.addPins(uris, screen, if (screen == PinScreen.SEARCH) 0L else activeTab?.id ?: 0L)
+        if (uris.isNotEmpty()) pendingUris = uris
     }
     val pickAvatar = rememberCropPicker(CropShape.CIRCLE) { path -> vm.updatePage { it.copy(avatarUri = path) } }
 
@@ -142,17 +157,32 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
                     Modifier.weight(1f).height(56.dp).border(2.dp, if (dark) Color(0xFF555555) else Color(0xFF8E8E8E), RoundedCornerShape(28.dp)).padding(horizontal = 22.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    InlineField(
-                        p.searchQuery, { v -> vm.updatePage { it.copy(searchQuery = v.trim()) } },
-                        TextStyle(color = ink, fontSize = 20.sp), Modifier.weight(1f), placeholder = "Search for ideas", singleLine = true, cursorColor = ink
-                    )
+                    if (edit) {
+                        InlineField(
+                            p.searchQuery, { v -> vm.updatePage { it.copy(searchQuery = v.trim()) } },
+                            TextStyle(color = ink, fontSize = 20.sp), Modifier.weight(1f), placeholder = "Search for ideas", singleLine = true, cursorColor = ink
+                        )
+                    } else {
+                        BasicTextField(
+                            value = query, onValueChange = { query = it }, singleLine = true,
+                            textStyle = TextStyle(color = ink, fontSize = 20.sp), cursorBrush = SolidColor(ink),
+                            modifier = Modifier.weight(1f),
+                            decorationBox = { inner ->
+                                Box {
+                                    if (query.isEmpty()) Text("Search for ideas", style = TextStyle(color = Color(0x80808080), fontSize = 20.sp))
+                                    inner()
+                                }
+                            }
+                        )
+                        if (query.isNotEmpty()) Icon(Icons.Filled.Close, "Clear", tint = ink, modifier = Modifier.size(24.dp).clickable { query = "" })
+                    }
                 }
                 Spacer(Modifier.width(14.dp))
                 Icon(Icons.Filled.Tune, null, tint = ink, modifier = Modifier.size(32.dp))
             }
             // pills
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                p.chips.toPinChips().forEachIndexed { i, chip -> ChipPill(chip, ink, onChange = { vm.updateChip(i, it) }, onDelete = { vm.deleteChip(i) }) }
+                p.chips.toPinChips().forEachIndexed { i, chip -> ChipPill(chip, ink, onChange = { vm.updateChip(i, it) }, onDelete = { vm.deleteChip(i) }, onTap = { query = chip.label }) }
                 if (edit) Icon(Icons.Filled.Add, "Add pill", tint = sub, modifier = Modifier.size(28.dp).clickable { vm.addChip() })
             }
             Spacer(Modifier.height(8.dp))
@@ -161,11 +191,22 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
         // the feed
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 12.dp)) {
             if (shown.isEmpty()) {
-                Text(if (edit) "No pins here yet. Tap + below to add pictures." else "Nothing here yet.", color = sub, fontSize = 15.sp, modifier = Modifier.padding(24.dp))
+                Text(if (searching) "No results for “${query.trim()}”" else if (edit) "No pins here yet. Tap + below to add pictures." else "Nothing here yet.", color = sub, fontSize = 15.sp, modifier = Modifier.padding(24.dp))
             } else {
                 Masonry(shown, ink, sub, vm)
             }
             Spacer(Modifier.height(24.dp))
+        }
+
+        if (pendingUris.isNotEmpty()) {
+            TagDialog(
+                title = "Tag these pictures", hint = "airi, idol, selfie", initial = "", confirm = "Add",
+                onSave = { raw ->
+                    vm.addPins(pendingUris, screen, if (screen == PinScreen.SEARCH) 0L else activeTab?.id ?: 0L, normalizeTags(raw))
+                    pendingUris = emptyList()
+                },
+                onDismiss = { pendingUris = emptyList() }
+            )
         }
 
         // bottom bar
@@ -209,17 +250,17 @@ private fun Modifier.combinedClickableTab(onClick: () -> Unit, onLongClick: () -
 /** A search pill: optional picture, an editable label, a pastel colour. Hold for photo / colour / delete. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChipPill(chip: PinChip, ink: Color, onChange: (PinChip) -> Unit, onDelete: () -> Unit) {
+private fun ChipPill(chip: PinChip, ink: Color, onChange: (PinChip) -> Unit, onDelete: () -> Unit, onTap: () -> Unit) {
     val edit = LocalEditMode.current
     var menu by remember { mutableStateOf(false) }
     val pick = rememberCropPicker(CropShape.RECT_4_5) { onChange(chip.copy(imageUri = it)) }
     Box {
         Row(
-            Modifier.height(52.dp).clip(RoundedCornerShape(18.dp)).background(Color(chip.color)).combinedClickable(onClick = { if (edit && chip.imageUri == null) pick() }, onLongClick = { if (edit) menu = true }),
+            Modifier.height(52.dp).clip(RoundedCornerShape(18.dp)).background(Color(chip.color)).combinedClickable(onClick = { if (!edit) onTap() else if (chip.imageUri == null) pick() }, onLongClick = { if (edit) menu = true }),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (chip.imageUri != null) {
-                AsyncImage(chip.imageUri, null, contentScale = ContentScale.Crop, modifier = Modifier.size(width = 54.dp, height = 52.dp).clickable { if (edit) pick() })
+                AsyncImage(chip.imageUri, null, contentScale = ContentScale.Crop, modifier = Modifier.size(width = 54.dp, height = 52.dp).clickable { if (edit) pick() else onTap() })
             }
             InlineField(
                 chip.label, { onChange(chip.copy(label = it.trim())) }, TextStyle(color = Color(0xFF111111), fontSize = 18.sp, fontWeight = FontWeight.Medium),
@@ -260,6 +301,7 @@ private fun Masonry(pins: List<PinEntity>, ink: Color, sub: Color, vm: Pinterest
 private fun PinCard(pin: PinEntity, ink: Color, sub: Color, vm: PinterestViewModel) {
     val edit = LocalEditMode.current
     var menu by remember { mutableStateOf(false) }
+    var tagDialog by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) vm.setPinImage(pin, uri) }
     val choose = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
     Column(Modifier.fillMaxWidth()) {
@@ -286,13 +328,37 @@ private fun PinCard(pin: PinEntity, ink: Color, sub: Color, vm: PinterestViewMod
         }
         if (!pin.sponsored) {
             Row(Modifier.fillMaxWidth().height(28.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                if (edit && pin.tags.isNotBlank()) {
+                    Text(pin.tags.tagList().joinToString(" ") { "#$it" }, color = sub, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f).padding(start = 6.dp))
+                }
                 Icon(Icons.Filled.MoreHoriz, "More", tint = ink, modifier = Modifier.padding(end = 8.dp).size(24.dp).clickable { if (edit) menu = true })
             }
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
             DropdownMenuItem(text = { Text("Change picture") }, onClick = { menu = false; choose() })
+            DropdownMenuItem(text = { Text("Edit tags") }, onClick = { menu = false; tagDialog = true })
             DropdownMenuItem(text = { Text(if (pin.sponsored) "Make normal pin" else "Make sponsored") }, onClick = { menu = false; vm.savePin(pin.copy(sponsored = !pin.sponsored)) })
             DropdownMenuItem(text = { Text("Delete pin") }, onClick = { menu = false; vm.deletePin(pin.id) })
         }
+        if (tagDialog) {
+            TagDialog(
+                title = "Tags", hint = "airi, idol, selfie", initial = pin.tags.tagList().joinToString(", "), confirm = "Save",
+                onSave = { raw -> vm.savePin(pin.copy(tags = normalizeTags(raw))); tagDialog = false },
+                onDismiss = { tagDialog = false }
+            )
+        }
     }
+}
+
+/** Words that make a pin findable: searching "airi" shows every pin tagged airi. */
+@Composable
+private fun TagDialog(title: String, hint: String, initial: String, confirm: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { OutlinedTextField(value = text, onValueChange = { text = it }, placeholder = { Text(hint) }, minLines = 1) },
+        confirmButton = { TextButton(onClick = { onSave(text) }) { Text(confirm) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }

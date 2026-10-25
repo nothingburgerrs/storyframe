@@ -6,6 +6,11 @@ class ProfileRepository(private val db: AppDatabase) {
 
     val profiles: Flow<List<ProfileEntity>> = db.profileDao().observeAll()
 
+    // The built-in phone apps talk to their tables directly.
+    val notes: NotesDao get() = db.notesDao()
+    val photos: PhotosDao get() = db.photosDao()
+    val sms: SmsDao get() = db.smsDao()
+
     fun observeProfile(id: Long): Flow<ProfileEntity?> = db.profileDao().observeById(id)
     fun observePills(profileId: Long): Flow<List<PillEntity>> = db.pillDao().observeForProfile(profileId)
     fun observeFollowedBy(profileId: Long): Flow<List<FollowedByEntity>> = db.followedByDao().observeForProfile(profileId)

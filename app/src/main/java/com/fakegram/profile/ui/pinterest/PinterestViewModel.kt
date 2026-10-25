@@ -92,12 +92,12 @@ class PinterestViewModel(
         path to aspect.coerceIn(0.45f, 1.8f)
     }
 
-    fun addPins(uris: List<Uri>, screen: Int, tabId: Long) {
+    fun addPins(uris: List<Uri>, screen: Int, tabId: Long, tags: String = "") {
         viewModelScope.launch {
             var position = (pins.value.maxOfOrNull { it.position } ?: -1) + 1
             for (uri in uris) {
                 val (path, aspect) = store(uri) ?: continue
-                repository.addPin(PinEntity(pageId = pageId, screen = screen, tabId = tabId, imageUri = path, aspect = aspect, position = position++))
+                repository.addPin(PinEntity(pageId = pageId, screen = screen, tabId = tabId, imageUri = path, aspect = aspect, position = position++, tags = tags))
             }
         }
     }

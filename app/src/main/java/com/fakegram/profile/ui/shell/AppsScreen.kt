@@ -62,6 +62,11 @@ object ShellRoutes {
 
     /** 0 = every video, otherwise only the videos of that character. */
     fun youtubeList(characterId: Long) = "youtubeList/$characterId"
+
+    /** The built-in phone apps; each shows the phone of one character (0 = no character yet). */
+    fun messages(characterId: Long) = "messages/$characterId"
+    fun photos(characterId: Long) = "photos/$characterId"
+    fun notes(characterId: Long) = "notes/$characterId"
 }
 
 /** Tab 2 - the active character's apps as plain rows, then the library of everything made so far. */

@@ -23,6 +23,9 @@ import com.fakegram.profile.ui.accounts.AccountsScreen
 import com.fakegram.profile.ui.bubble.BubbleChatScreen
 import com.fakegram.profile.ui.bubble.BubbleHomeScreen
 import com.fakegram.profile.ui.google.PanelScreen
+import com.fakegram.profile.ui.phone.MessagesScreen
+import com.fakegram.profile.ui.phone.NotesScreen
+import com.fakegram.profile.ui.phone.PhotosScreen
 import com.fakegram.profile.ui.google.PanelsHomeScreen
 import com.fakegram.profile.ui.home.HomeScreen
 import com.fakegram.profile.ui.post.PostViewerScreen
@@ -76,6 +79,15 @@ fun StoryframeNavHost(repository: ProfileRepository) {
     ) {
         composable(ROUTE_HOME) {
             PhoneHomeScreen(shell = shell, onNavigate = { route -> navController.navigate(route) })
+        }
+        composable("messages/{characterId}", arguments = listOf(navArgument("characterId") { type = NavType.LongType })) { entry ->
+            MessagesScreen(characterId = entry.arguments?.getLong("characterId") ?: 0L, onBack = { navController.popBackStack() })
+        }
+        composable("photos/{characterId}", arguments = listOf(navArgument("characterId") { type = NavType.LongType })) { entry ->
+            PhotosScreen(characterId = entry.arguments?.getLong("characterId") ?: 0L, onBack = { navController.popBackStack() })
+        }
+        composable("notes/{characterId}", arguments = listOf(navArgument("characterId") { type = NavType.LongType })) { entry ->
+            NotesScreen(characterId = entry.arguments?.getLong("characterId") ?: 0L, onBack = { navController.popBackStack() })
         }
         composable(ShellRoutes.STUDIO) {
             ShellTabs(shell = shell, onNavigate = { route -> navController.navigate(route) })

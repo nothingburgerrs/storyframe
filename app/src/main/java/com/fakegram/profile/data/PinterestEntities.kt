@@ -55,11 +55,26 @@ data class PinEntity(
     val title: String = "",
     val sponsored: Boolean = false,
     val sponsorName: String = "Sponsored",
-    val position: Int = 0
+    val position: Int = 0,
+    /** Comma-separated lowercase words; searching one of them finds this pin. */
+    val tags: String = ""
 )
 
 data class PinTab(val id: Long, val label: String)
 data class PinChip(val label: String, val imageUri: String?, val color: Long)
+
+fun String.tagList(): List<String> = split(',').map { it.trim() }.filter { it.isNotEmpty() }
+
+/** "Airi, #Idol  selfie" -> "airi,idol,selfie". */
+fun normalizeTags(raw: String): String =
+    raw.split(',', ' ', '\n', '#').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.distinct().joinToString(",")
+
+/** True when [query] is part of the title or of any tag, ignoring case. */
+fun PinEntity.matchesQuery(query: String): Boolean {
+    val q = query.trim().lowercase()
+    if (q.isEmpty()) return false
+    return title.lowercase().contains(q) || tags.tagList().any { it.contains(q) }
+}
 
 val PinChipColors = listOf(0xFFF5DDFA, 0xFFDDE3FF, 0xFFD8F5DD, 0xFFFFE7CC, 0xFFFFD9DE, 0xFFE3E3DC)
 

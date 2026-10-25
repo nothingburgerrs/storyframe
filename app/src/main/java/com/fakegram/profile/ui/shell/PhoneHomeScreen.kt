@@ -27,7 +27,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -114,7 +117,17 @@ fun PhoneHomeScreen(shell: ShellViewModel, onNavigate: (String) -> Unit) {
         .mapNotNull { id -> Platforms.all.firstOrNull { it.id == id && it.built } }
         .map { p -> HomeApp(p.id, p.label, appBrush(p.id), { AppGlyph(p.id) }) { routeFor(shell, p, c, profiles) } }
     val lightTile = Brush.linearGradient(listOf(Color.White, Color(0xFFF1F1F4)))
+    val cid = c?.id ?: 0L
     val extras = listOf(
+        HomeApp("messages", "Messages", Brush.linearGradient(listOf(Color(0xFF67E27A), Color(0xFF19B93A))), {
+            Icon(Icons.Filled.Sms, null, tint = Color.White, modifier = Modifier.size(24.dp))
+        }) { ShellRoutes.messages(cid) },
+        HomeApp("photos", "Photos", lightTile, {
+            Icon(Icons.Filled.PhotoLibrary, null, tint = Color(0xFFEE5A8F), modifier = Modifier.size(24.dp))
+        }) { ShellRoutes.photos(cid) },
+        HomeApp("notes", "Notes", Brush.linearGradient(listOf(Color(0xFFFFE066), Color(0xFFF5B800))), {
+            Icon(Icons.Filled.Description, null, tint = Color.White, modifier = Modifier.size(24.dp))
+        }) { ShellRoutes.notes(cid) },
         HomeApp("calendar", "Calendar", lightTile, {
             Icon(Icons.Filled.CalendarMonth, null, tint = Color(0xFFE5384F), modifier = Modifier.size(24.dp))
         }) { ShellRoutes.CALENDAR },
