@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.youtube
 
+import com.fakegram.profile.ui.theme.inAppFont
 import com.fakegram.profile.ui.phone.LocalEditMode
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -138,7 +139,7 @@ internal fun TimeInput(value: String, onCommit: (String) -> Unit, style: TextSty
             val text = format(new.text.filter { it.isDigit() }.take(6))
             field = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
         },
-        readOnly = !LocalEditMode.current, textStyle = style, singleLine = true,
+        readOnly = !LocalEditMode.current, textStyle = style.inAppFont(), singleLine = true,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
         modifier = modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Min).onFocusChanged {

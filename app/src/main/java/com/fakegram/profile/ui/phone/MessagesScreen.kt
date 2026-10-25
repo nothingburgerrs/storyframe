@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.phone
 
+import com.fakegram.profile.ui.theme.inAppFont
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -254,7 +255,7 @@ private fun ChatScreen(thread: SmsThreadEntity, edit: Boolean, colors: PhoneColo
                 if (edit) {
                     BasicTextField(
                         value = draft, onValueChange = { draft = it },
-                        textStyle = TextStyle(color = colors.text, fontSize = 16.sp), cursorBrush = SolidColor(colors.text),
+                        textStyle = TextStyle(color = colors.text, fontSize = 16.sp).inAppFont(), cursorBrush = SolidColor(colors.text),
                         modifier = Modifier.weight(1f).padding(vertical = 8.dp),
                         decorationBox = { inner ->
                             Box {

@@ -1,0 +1,5 @@
+Text fonts (Roboto, Inter, Poppins, Nunito, Playfair Display, Lora, Roboto Mono, Caveat, Dancing Script, Pacifico)
+come from Google Fonts and are licensed under the SIL Open Font License 1.1 (Roboto: Apache 2.0).
+
+apple_emoji.ttf is built from the emoji-datasource-apple image set (https://github.com/iamcal/emoji-data).
+The emoji artwork is (c) Apple Inc. It is included for personal, non-published use only.

@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.bubble
 
+import com.fakegram.profile.ui.theme.inAppFont
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -449,7 +450,7 @@ private fun BubbleInputBar(theme: BubbleTheme, text: String, onText: (String) ->
         ) {
             androidx.compose.foundation.text.BasicTextField(
                 value = text, onValueChange = onText, maxLines = 4,
-                textStyle = androidx.compose.ui.text.TextStyle(color = theme.topBarIcon, fontSize = 15.sp),
+                textStyle = androidx.compose.ui.text.TextStyle(color = theme.topBarIcon, fontSize = 15.sp).inAppFont(),
                 cursorBrush = androidx.compose.ui.graphics.SolidColor(theme.topBarIcon),
                 modifier = Modifier.weight(1f).padding(vertical = 10.dp)
             )

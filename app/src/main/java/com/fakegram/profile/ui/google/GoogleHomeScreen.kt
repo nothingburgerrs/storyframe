@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.google
 
+import com.fakegram.profile.ui.theme.inAppFont
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -137,7 +138,7 @@ fun GoogleHomeScreen(repository: ProfileRepository, onOpenPanel: (Long) -> Unit,
                 Spacer(Modifier.width(12.dp))
                 BasicTextField(
                     value = query, onValueChange = { query = it; missed = null }, singleLine = true,
-                    textStyle = TextStyle(color = ink, fontSize = 17.sp), cursorBrush = SolidColor(ink),
+                    textStyle = TextStyle(color = ink, fontSize = 17.sp).inAppFont(), cursorBrush = SolidColor(ink),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { submit() }),
                     modifier = Modifier.weight(1f),

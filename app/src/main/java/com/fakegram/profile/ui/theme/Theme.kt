@@ -91,7 +91,12 @@ fun StoryframeTheme(
     androidx.compose.runtime.CompositionLocalProvider(LocalStoryframeColors provides storyframeColors) {
         MaterialTheme(
             colorScheme = if (darkTheme) DarkScheme else LightScheme,
-            content = content
+            content = {
+                // MaterialTheme resets the text style, so the phone's font is applied again inside it.
+                androidx.compose.material3.ProvideTextStyle(
+                    androidx.compose.ui.text.TextStyle(fontFamily = LocalAppFontFamily.current)
+                ) { content() }
+            }
         )
     }
 }

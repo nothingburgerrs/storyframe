@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
@@ -27,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fakegram.profile.StoryframeApp
 import com.fakegram.profile.media.MediaStorage
+import com.fakegram.profile.ui.theme.AppFonts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -51,6 +54,7 @@ fun SettingsScreen(editing: Boolean, onEditingChange: (Boolean) -> Unit, onBack:
     val scope = rememberCoroutineScope()
     val dark by app.themePreferences.isDarkMode.collectAsState(initial = true)
     val wallpaper by app.themePreferences.wallpaper.collectAsState(initial = null)
+    val fontId by app.themePreferences.font.collectAsState(initial = AppFonts.DEFAULT_ID)
 
     val pickWallpaper = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) scope.launch {
@@ -89,6 +93,26 @@ fun SettingsScreen(editing: Boolean, onEditingChange: (Boolean) -> Unit, onBack:
                     )
                 }
             }
+            Spacer(Modifier.height(24.dp))
+            Text("Font", color = c.sub, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp, bottom = 6.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.card)) {
+                Text(
+                    "Hello 😀 ❤️ 👍🏽 🔥 🇰🇷 안녕", color = c.text, fontSize = 20.sp,
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                )
+                AppFonts.options.forEach { o ->
+                    HorizontalDivider(Modifier.padding(start = 16.dp), color = c.line)
+                    val family = remember(o.id) { AppFonts.previewFamily(context, o) }
+                    Row(
+                        Modifier.fillMaxWidth().clickable { scope.launch { app.themePreferences.setFont(o.id) } }.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(o.label, color = c.text, fontSize = 19.sp, fontFamily = family, modifier = Modifier.weight(1f))
+                        if (o.id == fontId) Icon(Icons.Filled.Check, "Selected", tint = Color(0xFF0A84FF), modifier = Modifier.size(22.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(40.dp))
         }
     }
 }

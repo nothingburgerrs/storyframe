@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.youtube
 
+import com.fakegram.profile.ui.theme.inAppFont
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -138,7 +139,7 @@ internal fun InlineText(
     var text by remember(value) { mutableStateOf(value) }
     var focused by remember { mutableStateOf(false) }
     BasicTextField(
-        value = text, onValueChange = { text = it }, readOnly = !LocalEditMode.current, textStyle = style, singleLine = singleLine,
+        value = text, onValueChange = { text = it }, readOnly = !LocalEditMode.current, textStyle = style.inAppFont(), singleLine = singleLine,
         cursorBrush = SolidColor(Color.White),
         modifier = modifier.then(if (wrap) Modifier.width(IntrinsicSize.Min) else Modifier).onFocusChanged {
             if (focused && !it.isFocused) { if (text != value) onCommit(text); onBlur() }
@@ -564,7 +565,7 @@ private fun CommentsPanel(
             ) {
                 BasicTextField(
                     value = draft, onValueChange = { draft = it }, maxLines = 4, cursorBrush = SolidColor(Color.White),
-                    textStyle = TextStyle(color = YtText, fontSize = 16.sp),
+                    textStyle = TextStyle(color = YtText, fontSize = 16.sp).inAppFont(),
                     modifier = Modifier.weight(1f).padding(vertical = 14.dp).onFocusChanged { if (it.isFocused) setExpanded(true) },
                     decorationBox = { inner -> Box { if (draft.isEmpty()) Text("Comment...", color = YtSub, fontSize = 16.sp); inner() } }
                 )

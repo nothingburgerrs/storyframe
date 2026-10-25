@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.pinterest
 
+import com.fakegram.profile.ui.theme.inAppFont
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -172,7 +173,7 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
                 ) {
                     BasicTextField(
                         value = query, onValueChange = { query = it }, singleLine = true,
-                        textStyle = TextStyle(color = ink, fontSize = 20.sp), cursorBrush = SolidColor(ink),
+                        textStyle = TextStyle(color = ink, fontSize = 20.sp).inAppFont(), cursorBrush = SolidColor(ink),
                         modifier = Modifier.weight(1f),
                         decorationBox = { inner ->
                             Box {

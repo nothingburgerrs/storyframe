@@ -41,6 +41,11 @@ android {
         compose true
     }
 
+    // The fonts are read straight from the APK, so they stay uncompressed.
+    androidResources {
+        noCompress 'ttf'
+    }
+
     packagingOptions {
         resources {
             excludes += ['/META-INF/{AL2.0,LGPL2.1}']

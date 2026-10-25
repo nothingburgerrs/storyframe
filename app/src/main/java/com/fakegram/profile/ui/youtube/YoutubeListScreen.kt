@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.youtube
 
+import com.fakegram.profile.ui.theme.inAppFont
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -94,7 +95,7 @@ fun YoutubeListScreen(onOpenVideo: (Long) -> Unit, onBack: () -> Unit) {
                 Row(Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFF272727)).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     BasicTextField(
                         value = query, onValueChange = { query = it }, singleLine = true,
-                        textStyle = TextStyle(color = YtText, fontSize = 16.sp), cursorBrush = SolidColor(Color.White),
+                        textStyle = TextStyle(color = YtText, fontSize = 16.sp).inAppFont(), cursorBrush = SolidColor(Color.White),
                         modifier = Modifier.weight(1f),
                         decorationBox = { inner -> Box { if (query.isEmpty()) Text("Search YouTube", color = YtSub, fontSize = 16.sp); inner() } }
                     )

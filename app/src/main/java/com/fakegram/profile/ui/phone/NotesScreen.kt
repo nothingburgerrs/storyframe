@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.phone
 
+import com.fakegram.profile.ui.theme.inAppFont
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -149,7 +150,7 @@ private fun NoteEditor(note: NoteEntity, edit: Boolean, colors: PhoneColors, onC
 @Composable
 private fun NoteField(value: String, edit: Boolean, hint: String, style: TextStyle, colors: PhoneColors, onValue: (String) -> Unit) {
     BasicTextField(
-        value = value, onValueChange = onValue, readOnly = !edit, textStyle = style, cursorBrush = SolidColor(NotesYellow),
+        value = value, onValueChange = onValue, readOnly = !edit, textStyle = style.inAppFont(), cursorBrush = SolidColor(NotesYellow),
         modifier = Modifier.fillMaxWidth(),
         decorationBox = { inner ->
             androidx.compose.foundation.layout.Box {

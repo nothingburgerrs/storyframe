@@ -15,6 +15,7 @@ class ThemePreferences(private val context: Context) {
         private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode")
         private val ACTIVE_CHARACTER_KEY = longPreferencesKey("active_character")
         private val WALLPAPER_KEY = stringPreferencesKey("wallpaper")
+        private val FONT_KEY = stringPreferencesKey("font")
     }
 
     val isDarkMode = context.dataStore.data.map { prefs -> prefs[DARK_MODE_KEY] ?: true }
@@ -32,6 +33,13 @@ class ThemePreferences(private val context: Context) {
 
     /** Path of the picture used as the home screen wallpaper, or null for the built-in gradient. */
     val wallpaper = context.dataStore.data.map { prefs -> prefs[WALLPAPER_KEY]?.takeIf { it.isNotEmpty() } }
+
+    /** Id of the phone's font (see AppFonts). */
+    val font = context.dataStore.data.map { prefs -> prefs[FONT_KEY] ?: "roboto" }
+
+    suspend fun setFont(id: String) {
+        context.dataStore.edit { prefs -> prefs[FONT_KEY] = id }
+    }
 
     suspend fun setWallpaper(path: String?) {
         context.dataStore.edit { prefs -> prefs[WALLPAPER_KEY] = path.orEmpty() }

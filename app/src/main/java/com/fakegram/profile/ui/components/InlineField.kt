@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.components
 
+import com.fakegram.profile.ui.theme.inAppFont
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
@@ -38,7 +39,7 @@ fun InlineField(
     var text by remember(value) { mutableStateOf(value) }
     var focused by remember { mutableStateOf(false) }
     BasicTextField(
-        value = text, onValueChange = { text = it }, readOnly = !editable, textStyle = style, singleLine = singleLine,
+        value = text, onValueChange = { text = it }, readOnly = !editable, textStyle = style.inAppFont(), singleLine = singleLine,
         cursorBrush = SolidColor(if (cursorColor == Color.Unspecified) Color.Gray else cursorColor),
         modifier = modifier.then(if (wrap) Modifier.width(IntrinsicSize.Min) else Modifier).onFocusChanged {
             if (focused && !it.isFocused) { if (text != value) onCommit(text); onBlur() }

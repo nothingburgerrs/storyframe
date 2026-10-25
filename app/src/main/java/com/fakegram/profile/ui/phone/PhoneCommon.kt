@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.phone
 
+import com.fakegram.profile.ui.theme.inAppFont
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -63,7 +64,7 @@ fun PhoneSearchField(query: String, onChange: (String) -> Unit, placeholder: Str
         Spacer(Modifier.width(8.dp))
         BasicTextField(
             value = query, onValueChange = onChange, singleLine = true,
-            textStyle = TextStyle(color = colors.text, fontSize = 17.sp), cursorBrush = SolidColor(colors.text),
+            textStyle = TextStyle(color = colors.text, fontSize = 17.sp).inAppFont(), cursorBrush = SolidColor(colors.text),
             modifier = Modifier.weight(1f),
             decorationBox = { inner ->
                 Box {

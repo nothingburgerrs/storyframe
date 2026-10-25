@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.post
 
+import com.fakegram.profile.ui.theme.inAppFont
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -508,7 +509,7 @@ private fun CommentsSheet(viewModel: PostViewModel, post: PostEntity, author: co
                     // Type the comment right here; "Post" adds it as this profile.
                     androidx.compose.foundation.text.BasicTextField(
                         value = draft, onValueChange = { draft = it }, maxLines = 4,
-                        textStyle = androidx.compose.ui.text.TextStyle(color = colors.primaryText, fontSize = 14.sp),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = colors.primaryText, fontSize = 14.sp).inAppFont(),
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(colors.primaryText),
                         modifier = Modifier.weight(1f).padding(vertical = 11.dp),
                         decorationBox = { inner -> Box { if (draft.isEmpty()) Text("What do you think of this?", color = colors.secondaryText, fontSize = 13.sp); inner() } }
