@@ -2,8 +2,13 @@ package com.fakegram.profile.ui.nav
 
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -27,6 +32,8 @@ import com.fakegram.profile.ui.shell.CalendarDayScreen
 import com.fakegram.profile.ui.shell.CalendarScreen
 import com.fakegram.profile.ui.shell.GroupChatsScreen
 import com.fakegram.profile.ui.shell.GroupPanelsScreen
+import com.fakegram.profile.ui.shell.LocalEditMode
+import com.fakegram.profile.ui.shell.PhoneHomeScreen
 import com.fakegram.profile.ui.shell.ShellRoutes
 import com.fakegram.profile.ui.shell.ShellTabs
 import com.fakegram.profile.ui.shell.ShellViewModel
@@ -55,15 +62,22 @@ fun StoryframeNavHost(repository: ProfileRepository) {
     // One shell state (characters + who is active) shared by every screen.
     val shell: ShellViewModel = viewModel(factory = ShellViewModel.factory(app, repository, app.themePreferences))
 
+    val editing by shell.editMode.collectAsState()
+
+    CompositionLocalProvider(LocalEditMode provides editing) {
     NavHost(
         navController = navController,
         startDestination = ROUTE_HOME,
-        enterTransition = { fadeIn(tween(260, delayMillis = 40)) },
+        // Apps grow in from the home screen and shrink back out, a bit like a real phone.
+        enterTransition = { fadeIn(tween(220)) + scaleIn(tween(300), initialScale = 0.94f) },
         exitTransition = { fadeOut(tween(160)) },
-        popEnterTransition = { fadeIn(tween(260, delayMillis = 40)) },
-        popExitTransition = { fadeOut(tween(160)) }
+        popEnterTransition = { fadeIn(tween(220)) },
+        popExitTransition = { fadeOut(tween(200)) + scaleOut(tween(260), targetScale = 0.94f) }
     ) {
         composable(ROUTE_HOME) {
+            PhoneHomeScreen(shell = shell, onNavigate = { route -> navController.navigate(route) })
+        }
+        composable(ShellRoutes.STUDIO) {
             ShellTabs(shell = shell, onNavigate = { route -> navController.navigate(route) })
         }
 
@@ -203,5 +217,6 @@ fun StoryframeNavHost(repository: ProfileRepository) {
             val panelId = backStackEntry.arguments?.getLong("panelId") ?: 0L
             PanelScreen(panelId = panelId, onBack = { navController.popBackStack() })
         }
+    }
     }
 }

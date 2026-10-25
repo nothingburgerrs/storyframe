@@ -72,6 +72,7 @@ import com.fakegram.profile.data.toPinTabs
 import com.fakegram.profile.ui.components.CropShape
 import com.fakegram.profile.ui.components.InlineField
 import com.fakegram.profile.ui.components.rememberCropPicker
+import com.fakegram.profile.ui.shell.LocalEditMode
 import com.fakegram.profile.ui.theme.LocalStoryframeColors
 
 private val PinRed = Color(0xFFE60023)
@@ -91,6 +92,7 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
     val ink = if (dark) Color.White else Color(0xFF111111)
     val sub = if (dark) Color(0xFFAAAAAA) else Color(0xFF767676)
 
+    val edit = LocalEditMode.current
     var screen by rememberSaveable { mutableStateOf(PinScreen.HOME) }
     var tabId by rememberSaveable { mutableStateOf(0L) }
     var addMenu by remember { mutableStateOf(false) }
@@ -117,7 +119,7 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
                     val selected = t.id == activeTab?.id
                     var menu by remember { mutableStateOf(false) }
                     Box {
-                        Column(Modifier.combinedClickableTab(onClick = { tabId = t.id }, onLongClick = { menu = true })) {
+                        Column(Modifier.combinedClickableTab(onClick = { tabId = t.id }, onLongClick = { if (edit) menu = true })) {
                             val style = TextStyle(color = if (selected) ink else sub, fontSize = 20.sp, fontWeight = FontWeight.Medium)
                             if (selected) InlineField(t.label, { vm.renameTab(t.id, it.trim()) }, style, placeholder = "Tab", singleLine = true, wrap = true, cursorColor = ink)
                             else Text(t.label, style = style, maxLines = 1)
@@ -129,7 +131,7 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
                         }
                     }
                 }
-                Icon(Icons.Filled.Add, "Add tab", tint = sub, modifier = Modifier.size(26.dp).clickable { vm.addTab { tabId = it } })
+                if (edit) Icon(Icons.Filled.Add, "Add tab", tint = sub, modifier = Modifier.size(26.dp).clickable { vm.addTab { tabId = it } })
             }
         } else {
             // search bar
@@ -151,7 +153,7 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
             // pills
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 p.chips.toPinChips().forEachIndexed { i, chip -> ChipPill(chip, ink, onChange = { vm.updateChip(i, it) }, onDelete = { vm.deleteChip(i) }) }
-                Icon(Icons.Filled.Add, "Add pill", tint = sub, modifier = Modifier.size(28.dp).clickable { vm.addChip() })
+                if (edit) Icon(Icons.Filled.Add, "Add pill", tint = sub, modifier = Modifier.size(28.dp).clickable { vm.addChip() })
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -159,7 +161,7 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
         // the feed
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 12.dp)) {
             if (shown.isEmpty()) {
-                Text("No pins here yet. Tap + below to add pictures.", color = sub, fontSize = 15.sp, modifier = Modifier.padding(24.dp))
+                Text(if (edit) "No pins here yet. Tap + below to add pictures." else "Nothing here yet.", color = sub, fontSize = 15.sp, modifier = Modifier.padding(24.dp))
             } else {
                 Masonry(shown, ink, sub, vm)
             }
@@ -175,7 +177,7 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
                 Icon(Icons.Filled.Search, "Search", tint = ink, modifier = Modifier.size(if (screen == PinScreen.SEARCH) 34.dp else 30.dp))
             }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Add, "Add", tint = ink, modifier = Modifier.size(34.dp).clickable { addMenu = true })
+                Icon(Icons.Filled.Add, "Add", tint = ink, modifier = Modifier.size(34.dp).clickable { if (edit) addMenu = true })
                 DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
                     DropdownMenuItem(text = { Text("Add pictures") }, onClick = { addMenu = false; addPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) })
                     DropdownMenuItem(text = { Text("Add a sponsored pin") }, onClick = {
@@ -184,14 +186,14 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
                     })
                 }
             }
-            Box(Modifier.weight(1f).clickable { vm.updatePage { it.copy(showDot = !it.showDot) } }, contentAlignment = Alignment.Center) {
+            Box(Modifier.weight(1f).clickable { if (edit) vm.updatePage { it.copy(showDot = !it.showDot) } }, contentAlignment = Alignment.Center) {
                 Box {
                     Icon(Icons.Outlined.ChatBubbleOutline, "Messages", tint = ink, modifier = Modifier.size(32.dp))
                     if (p.showDot) Box(Modifier.align(Alignment.TopEnd).size(11.dp).background(PinRed, CircleShape))
                 }
             }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Box(Modifier.size(32.dp).clip(CircleShape).background(Color(0xFF3A3A3A)).clickable(onClick = pickAvatar), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(32.dp).clip(CircleShape).background(Color(0xFF3A3A3A)).clickable { if (edit) pickAvatar() }, contentAlignment = Alignment.Center) {
                     if (p.avatarUri != null) AsyncImage(p.avatarUri, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                     else Icon(Icons.Filled.Person, null, tint = Color.White, modifier = Modifier.size(20.dp))
                 }
@@ -208,15 +210,16 @@ private fun Modifier.combinedClickableTab(onClick: () -> Unit, onLongClick: () -
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChipPill(chip: PinChip, ink: Color, onChange: (PinChip) -> Unit, onDelete: () -> Unit) {
+    val edit = LocalEditMode.current
     var menu by remember { mutableStateOf(false) }
     val pick = rememberCropPicker(CropShape.RECT_4_5) { onChange(chip.copy(imageUri = it)) }
     Box {
         Row(
-            Modifier.height(52.dp).clip(RoundedCornerShape(18.dp)).background(Color(chip.color)).combinedClickable(onClick = { if (chip.imageUri == null) pick() }, onLongClick = { menu = true }),
+            Modifier.height(52.dp).clip(RoundedCornerShape(18.dp)).background(Color(chip.color)).combinedClickable(onClick = { if (edit && chip.imageUri == null) pick() }, onLongClick = { if (edit) menu = true }),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (chip.imageUri != null) {
-                AsyncImage(chip.imageUri, null, contentScale = ContentScale.Crop, modifier = Modifier.size(width = 54.dp, height = 52.dp).clickable(onClick = pick))
+                AsyncImage(chip.imageUri, null, contentScale = ContentScale.Crop, modifier = Modifier.size(width = 54.dp, height = 52.dp).clickable { if (edit) pick() })
             }
             InlineField(
                 chip.label, { onChange(chip.copy(label = it.trim())) }, TextStyle(color = Color(0xFF111111), fontSize = 18.sp, fontWeight = FontWeight.Medium),
@@ -255,6 +258,7 @@ private fun Masonry(pins: List<PinEntity>, ink: Color, sub: Color, vm: Pinterest
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PinCard(pin: PinEntity, ink: Color, sub: Color, vm: PinterestViewModel) {
+    val edit = LocalEditMode.current
     var menu by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) vm.setPinImage(pin, uri) }
     val choose = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
@@ -262,7 +266,7 @@ private fun PinCard(pin: PinEntity, ink: Color, sub: Color, vm: PinterestViewMod
         if (pin.sponsored) {
             Row(Modifier.padding(start = 6.dp, top = 6.dp), verticalAlignment = Alignment.Top) {
                 InlineField(pin.title, { vm.savePin(pin.copy(title = it.trim())) }, TextStyle(color = ink, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Medium), Modifier.weight(1f), placeholder = "Ad title", cursorColor = ink)
-                Icon(Icons.Filled.MoreHoriz, "More", tint = ink, modifier = Modifier.padding(start = 6.dp, top = 4.dp, end = 4.dp).size(26.dp).clickable { menu = true })
+                Icon(Icons.Filled.MoreHoriz, "More", tint = ink, modifier = Modifier.padding(start = 6.dp, top = 4.dp, end = 4.dp).size(26.dp).clickable { if (edit) menu = true })
             }
             Row(Modifier.padding(start = 6.dp, top = 8.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(54.dp).clip(CircleShape).background(Color(0xFFFF6A1F)), contentAlignment = Alignment.Center) {
@@ -274,15 +278,15 @@ private fun PinCard(pin: PinEntity, ink: Color, sub: Color, vm: PinterestViewMod
         }
         Box(
             Modifier.fillMaxWidth().aspectRatio(pin.aspect).clip(RoundedCornerShape(24.dp)).background(if (ink == Color.White) Color(0xFF222222) else Color(0xFFEFEFEF))
-                .combinedClickable(onClick = { if (pin.imageUri == null) choose() }, onLongClick = { menu = true }),
+                .combinedClickable(onClick = { if (edit && pin.imageUri == null) choose() }, onLongClick = { if (edit) menu = true }),
             contentAlignment = Alignment.Center
         ) {
             if (pin.imageUri != null) AsyncImage(pin.imageUri, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            else Text("Tap to add a picture", color = sub, fontSize = 13.sp)
+            else if (edit) Text("Tap to add a picture", color = sub, fontSize = 13.sp)
         }
         if (!pin.sponsored) {
             Row(Modifier.fillMaxWidth().height(28.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.MoreHoriz, "More", tint = ink, modifier = Modifier.padding(end = 8.dp).size(24.dp).clickable { menu = true })
+                Icon(Icons.Filled.MoreHoriz, "More", tint = ink, modifier = Modifier.padding(end = 8.dp).size(24.dp).clickable { if (edit) menu = true })
             }
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {

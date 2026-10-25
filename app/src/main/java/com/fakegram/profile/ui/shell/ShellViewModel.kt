@@ -19,8 +19,10 @@ import com.fakegram.profile.data.tabsToJson
 import com.fakegram.profile.data.memberIdList
 import com.fakegram.profile.data.platformList
 import com.fakegram.profile.settings.ThemePreferences
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -59,6 +61,15 @@ class ShellViewModel(
     val active: StateFlow<CharacterEntity?> = combine(characters, activeId) { list, id ->
         list.firstOrNull { it.id == id } ?: list.firstOrNull()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val _editMode = MutableStateFlow(true)
+
+    /** True = every app on the phone can be changed; false = view only, like a real phone. */
+    val editMode: StateFlow<Boolean> = _editMode.asStateFlow()
+
+    fun setEditMode(editing: Boolean) {
+        _editMode.value = editing
+    }
 
     private val editLock = Mutex()
 

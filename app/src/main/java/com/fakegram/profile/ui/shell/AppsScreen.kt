@@ -57,6 +57,8 @@ object ShellRoutes {
     const val BUBBLE_LIST = "bubbles"
     const val ACCOUNTS = "accounts"
     const val CALENDAR = "calendar"
+    /** The original Hub / Apps tabs, kept as the place to manage characters. */
+    const val STUDIO = "studio"
 
     /** 0 = every video, otherwise only the videos of that character. */
     fun youtubeList(characterId: Long) = "youtubeList/$characterId"
@@ -161,7 +163,7 @@ private fun AppRow(platform: Platform, palette: ShellPalette, onList: (() -> Uni
     }
 }
 
-private fun appBrush(id: String): Brush = when (id) {
+internal fun appBrush(id: String): Brush = when (id) {
     Platforms.INSTAGRAM -> Brush.linearGradient(listOf(Color(0xFFF9CE34), Color(0xFFEE2A7B), Color(0xFF6228D7)))
     Platforms.GOOGLE -> Brush.linearGradient(listOf(Color.White, Color(0xFFF1F1F4)))
     Platforms.BUBBLE -> Brush.linearGradient(listOf(Color(0xFFB7A4FF), Color(0xFF7C8CFF)))
@@ -171,7 +173,7 @@ private fun appBrush(id: String): Brush = when (id) {
 }
 
 @Composable
-private fun AppGlyph(id: String) {
+internal fun AppGlyph(id: String) {
     val glyph = Modifier.size(22.dp)
     when (id) {
         Platforms.INSTAGRAM -> Icon(Icons.Filled.CameraAlt, null, tint = Color.White, modifier = glyph)

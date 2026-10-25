@@ -15,6 +15,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import com.fakegram.profile.ui.shell.LocalEditMode
 
 /**
  * Text you type straight into a screen instead of through a dialog. It keeps its own text while you type and
@@ -33,10 +34,11 @@ fun InlineField(
     wrap: Boolean = false,
     onBlur: () -> Unit = {}
 ) {
+    val editable = LocalEditMode.current
     var text by remember(value) { mutableStateOf(value) }
     var focused by remember { mutableStateOf(false) }
     BasicTextField(
-        value = text, onValueChange = { text = it }, textStyle = style, singleLine = singleLine,
+        value = text, onValueChange = { text = it }, readOnly = !editable, textStyle = style, singleLine = singleLine,
         cursorBrush = SolidColor(if (cursorColor == Color.Unspecified) Color.Gray else cursorColor),
         modifier = modifier.then(if (wrap) Modifier.width(IntrinsicSize.Min) else Modifier).onFocusChanged {
             if (focused && !it.isFocused) { if (text != value) onCommit(text); onBlur() }
