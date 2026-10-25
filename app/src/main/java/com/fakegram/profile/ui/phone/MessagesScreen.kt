@@ -58,17 +58,21 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.fakegram.profile.media.MediaStorage
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.fakegram.profile.StoryframeApp
 import com.fakegram.profile.data.SmsMessageEntity
 import com.fakegram.profile.data.SmsThreadEntity
 import com.fakegram.profile.ui.components.CropShape
 import com.fakegram.profile.ui.components.InlineField
 import com.fakegram.profile.ui.components.rememberCropPicker
-import com.fakegram.profile.ui.shell.LocalEditMode
 import kotlinx.coroutines.launch
 
 private val MessagesBlue = Color(0xFF0A84FF)
 private const val GapMillis = 60 * 60 * 1000L
+private const val TimeFormat = "yyyy-MM-dd HH:mm"
 
 /** A fake Messages app: conversation list with search, and iMessage-style chats. */
 @Composable
@@ -173,8 +177,10 @@ private fun ContactAvatar(t: SmsThreadEntity, size: Dp, c: PhoneColors) {
 
 @Composable
 private fun ChatScreen(thread: SmsThreadEntity, edit: Boolean, colors: PhoneColors, onBack: () -> Unit) {
-    val app = LocalContext.current.applicationContext as StoryframeApp
+    val context = LocalContext.current
+    val app = context.applicationContext as StoryframeApp
     val dao = app.repository.sms
+    var timeFor by remember { mutableStateOf<SmsMessageEntity?>(null) }
     val messages by remember(thread.id) { dao.observeMessages(thread.id) }.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -211,10 +217,25 @@ private fun ChatScreen(thread: SmsThreadEntity, edit: Boolean, colors: PhoneColo
                     Bubble(
                         m, colors, edit,
                         onSwap = { scope.launch { dao.insertMessage(m.copy(fromMe = !m.fromMe)) } },
+                        onSetTime = { timeFor = m },
                         onDelete = { scope.launch { dao.deleteMessage(m.id) } }
                     )
                 }
             }
+        }
+
+        timeFor?.let { m ->
+            PhoneTextDialog(
+                title = "Date and time", hint = "2026-03-14 21:45",
+                initial = SimpleDateFormat(TimeFormat, Locale.US).format(Date(m.sentAt)), confirm = "Save",
+                onSave = { raw ->
+                    val parsed = runCatching { SimpleDateFormat(TimeFormat, Locale.US).apply { isLenient = false }.parse(raw.trim())?.time }.getOrNull()
+                    if (parsed != null) scope.launch { dao.insertMessage(m.copy(sentAt = parsed)) }
+                    else MediaStorage.toast(context, "Use the form 2026-03-14 21:45")
+                    timeFor = null
+                },
+                onDismiss = { timeFor = null }
+            )
         }
 
         // input bar: a real writing bar in Edit mode, a static one in View mode
@@ -252,7 +273,9 @@ private fun ChatScreen(thread: SmsThreadEntity, edit: Boolean, colors: PhoneColo
                     Modifier.size(34.dp).clip(CircleShape).background(if (draft.isBlank()) colors.field else MessagesBlue).clickable(enabled = draft.isNotBlank()) {
                         val text = draft.trim()
                         draft = ""
-                        scope.launch { dao.insertMessage(SmsMessageEntity(threadId = thread.id, text = text, fromMe = fromMe, sentAt = System.currentTimeMillis())) }
+                        // A new message lands a minute after the last one, so a story keeps its own dates instead of the real clock.
+                        val sentAt = messages.lastOrNull()?.let { it.sentAt + 60_000L } ?: System.currentTimeMillis()
+                        scope.launch { dao.insertMessage(SmsMessageEntity(threadId = thread.id, text = text, fromMe = fromMe, sentAt = sentAt)) }
                     },
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.Filled.ArrowUpward, "Send", tint = Color.White, modifier = Modifier.size(20.dp)) }
@@ -263,7 +286,7 @@ private fun ChatScreen(thread: SmsThreadEntity, edit: Boolean, colors: PhoneColo
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun Bubble(m: SmsMessageEntity, colors: PhoneColors, edit: Boolean, onSwap: () -> Unit, onDelete: () -> Unit) {
+private fun Bubble(m: SmsMessageEntity, colors: PhoneColors, edit: Boolean, onSwap: () -> Unit, onSetTime: () -> Unit, onDelete: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val bg = if (m.fromMe) MessagesBlue else if (colors.bg == Color(0xFF000000)) Color(0xFF2C2C2E) else Color(0xFFE9E9EB)
     val fg = if (m.fromMe) Color.White else colors.text
@@ -277,6 +300,7 @@ private fun Bubble(m: SmsMessageEntity, colors: PhoneColors, edit: Boolean, onSw
             )
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Swap side") }, onClick = { menu = false; onSwap() })
+                DropdownMenuItem(text = { Text("Set date and time") }, onClick = { menu = false; onSetTime() })
                 DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; onDelete() })
             }
         }

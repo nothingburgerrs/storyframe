@@ -1,6 +1,10 @@
 package com.fakegram.profile.ui.bubble
 
 import androidx.compose.foundation.background
+import com.fakegram.profile.ui.phone.LocalEditMode
+import com.fakegram.profile.ui.phone.PhoneSearchField
+import com.fakegram.profile.ui.phone.phoneColors
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,8 +63,14 @@ import kotlinx.coroutines.launch
 @Composable
 fun BubbleHomeScreen(repository: ProfileRepository, onOpenChat: (Long) -> Unit, onBack: () -> Unit) {
     val viewModel: BubbleHomeViewModel = viewModel(factory = BubbleHomeViewModel.factory(repository))
-    val chats by viewModel.chats.collectAsState()
+    val allChats by viewModel.chats.collectAsState()
     val previews by viewModel.lastMessages.collectAsState()
+    val edit = LocalEditMode.current
+    var query by rememberSaveable { mutableStateOf("") }
+    val q = query.trim().lowercase()
+    val chats = if (q.isEmpty()) allChats else allChats.filter {
+        it.title.lowercase().contains(q) || it.artistName.lowercase().contains(q) || previews[it.id].orEmpty().lowercase().contains(q)
+    }
 
     val app = LocalContext.current.applicationContext as StoryframeApp
     val isDark by app.themePreferences.isDarkMode.collectAsState(initial = true)
@@ -69,7 +79,7 @@ fun BubbleHomeScreen(repository: ProfileRepository, onOpenChat: (Long) -> Unit, 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Bubble chats", fontWeight = FontWeight.Bold) },
+                title = { Text("Bubble", fontWeight = FontWeight.Bold) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
                     IconButton(onClick = { scope.launch { app.themePreferences.setDarkMode(!isDark) } }) {
@@ -79,14 +89,14 @@ fun BubbleHomeScreen(repository: ProfileRepository, onOpenChat: (Long) -> Unit, 
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { viewModel.createChat { id -> onOpenChat(id) } }) {
+            if (edit) FloatingActionButton(onClick = { viewModel.createChat { id -> onOpenChat(id) } }) {
                 Icon(Icons.Filled.Add, contentDescription = "New chat")
             }
         }
     ) { padding ->
-        if (chats.isEmpty()) {
+        if (allChats.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding).padding(32.dp), contentAlignment = Alignment.Center) {
-                Text("No chats yet. Tap + to start a chat with your favourite artist.")
+                Text(if (edit) "No chats yet. Tap + to start a chat with your favourite artist." else "No chats")
             }
         } else {
             LazyColumn(
@@ -94,8 +104,13 @@ fun BubbleHomeScreen(repository: ProfileRepository, onOpenChat: (Long) -> Unit, 
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                item {
+                    PhoneSearchField(query, { query = it }, "Search chats", phoneColors())
+                }
+                if (chats.isEmpty()) item { Text("No results", modifier = Modifier.padding(8.dp)) }
                 items(chats, key = { it.id }) { chat ->
                     ChatRow(
+                        edit = edit,
                         chat = chat,
                         preview = previews[chat.id].orEmpty(),
                         onClick = { onOpenChat(chat.id) },
@@ -109,7 +124,7 @@ fun BubbleHomeScreen(repository: ProfileRepository, onOpenChat: (Long) -> Unit, 
 }
 
 @Composable
-private fun ChatRow(chat: BubbleChatEntity, preview: String, onClick: () -> Unit, onDuplicate: () -> Unit, onDelete: () -> Unit) {
+private fun ChatRow(edit: Boolean, chat: BubbleChatEntity, preview: String, onClick: () -> Unit, onDuplicate: () -> Unit, onDelete: () -> Unit) {
     var menuExpanded by remember { mutableStateOf(false) }
     val theme = BubbleThemes.byId(chat.theme)
     Row(
@@ -132,7 +147,7 @@ private fun ChatRow(chat: BubbleChatEntity, preview: String, onClick: () -> Unit
             Text(chat.artistName, fontSize = 13.sp, maxLines = 1)
             if (preview.isNotBlank()) Text(preview, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Box {
+        if (edit) Box {
             IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Menu") }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                 DropdownMenuItem(text = { Text("Duplicate") }, onClick = { menuExpanded = false; onDuplicate() })

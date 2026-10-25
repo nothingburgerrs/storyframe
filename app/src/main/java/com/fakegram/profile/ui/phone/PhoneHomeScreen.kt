@@ -1,10 +1,11 @@
-package com.fakegram.profile.ui.shell
+package com.fakegram.profile.ui.phone
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -25,11 +26,12 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -40,7 +42,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,137 +50,123 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
-import com.fakegram.profile.data.CharacterEntity
-import com.fakegram.profile.data.Platform
-import com.fakegram.profile.data.Platforms
-import com.fakegram.profile.data.ProfileEntity
-import com.fakegram.profile.data.isGroup
-import com.fakegram.profile.data.platformList
+import coil.compose.rememberAsyncImagePainter
+import com.fakegram.profile.StoryframeApp
 import com.fakegram.profile.ui.theme.LocalStoryframeColors
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
-/** One icon on the fake phone. [route] is resolved on tap because some apps create their data on first use. */
+/** One icon on the fake phone. */
 private class HomeApp(
-    val key: String,
     val label: String,
+    val route: String,
     val brush: Brush,
-    val glyph: @Composable () -> Unit,
-    val route: suspend () -> String
+    val glyph: @Composable () -> Unit
 )
 
 /** An app that is currently zooming open from its icon. */
-private class LaunchInfo(val app: HomeApp, val bounds: Rect, val route: String)
+private class LaunchInfo(val app: HomeApp, val bounds: Rect)
 
-private suspend fun routeFor(shell: ShellViewModel, p: Platform, c: CharacterEntity, profiles: List<ProfileEntity>): String = when (p.id) {
-    Platforms.INSTAGRAM ->
-        c.instagramProfileId?.takeIf { id -> profiles.any { it.id == id } }?.let { "profile/$it" } ?: ShellRoutes.INSTAGRAM_LIST
-    Platforms.GOOGLE -> if (c.isGroup) "groupGoogle/${c.id}" else "panel/${shell.panelIdFor(c)}"
-    Platforms.BUBBLE -> if (c.isGroup) "groupBubble/${c.id}" else "bubble/${shell.chatIdFor(c)}"
-    Platforms.YOUTUBE -> ShellRoutes.youtubeList(c.id)
-    Platforms.PINTEREST -> "pinterest/${shell.pinterestIdFor(c)}"
-    else -> ShellRoutes.STUDIO
-}
+private val InstagramBrush = Brush.linearGradient(listOf(Color(0xFFF9CE34), Color(0xFFEE2A7B), Color(0xFF6228D7)))
+private val WhiteTile = Brush.linearGradient(listOf(Color.White, Color(0xFFF1F1F4)))
+
+private val Apps = listOf(
+    HomeApp("Messages", PhoneRoutes.MESSAGES, Brush.linearGradient(listOf(Color(0xFF67E27A), Color(0xFF19B93A)))) {
+        Icon(Icons.Filled.Sms, null, tint = Color.White, modifier = Modifier.size(24.dp))
+    },
+    HomeApp("Google", PhoneRoutes.GOOGLE, WhiteTile) {
+        Text(
+            "G",
+            style = TextStyle(
+                brush = Brush.linearGradient(listOf(Color(0xFF4285F4), Color(0xFFEA4335), Color(0xFFFBBC05), Color(0xFF34A853))),
+                fontSize = 26.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.SansSerif
+            )
+        )
+    },
+    HomeApp("Instagram", PhoneRoutes.INSTAGRAM, InstagramBrush) {
+        Icon(Icons.Filled.CameraAlt, null, tint = Color.White, modifier = Modifier.size(22.dp))
+    },
+    HomeApp("YouTube", PhoneRoutes.YOUTUBE, Brush.linearGradient(listOf(Color(0xFFFF4B4B), Color(0xFFE0121F)))) {
+        Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(26.dp))
+    },
+    HomeApp("Bubble", PhoneRoutes.BUBBLE, Brush.linearGradient(listOf(Color(0xFFB7A4FF), Color(0xFF7C8CFF)))) {
+        Icon(Icons.Filled.ChatBubble, null, tint = Color.White, modifier = Modifier.size(22.dp))
+    },
+    HomeApp("Pinterest", PhoneRoutes.PINTEREST, Brush.linearGradient(listOf(Color(0xFFE60023), Color(0xFFE60023)))) {
+        Text("P", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif)
+    },
+    HomeApp("Photos", PhoneRoutes.PHOTOS, WhiteTile) {
+        Icon(Icons.Filled.PhotoLibrary, null, tint = Color(0xFFEE5A8F), modifier = Modifier.size(24.dp))
+    },
+    HomeApp("Notes", PhoneRoutes.NOTES, Brush.linearGradient(listOf(Color(0xFFFFE066), Color(0xFFF5B800)))) {
+        Icon(Icons.Filled.Description, null, tint = Color.White, modifier = Modifier.size(24.dp))
+    },
+    HomeApp("Settings", PhoneRoutes.SETTINGS, Brush.linearGradient(listOf(Color(0xFF8E8E93), Color(0xFF636366)))) {
+        Icon(Icons.Filled.Settings, null, tint = Color.White, modifier = Modifier.size(24.dp))
+    }
+)
+
+private val DockApps = Apps.take(4)
+private val GridApps = Apps.drop(4)
 
 /**
- * The first thing you see: a fake phone home screen. The active character's apps sit in a dock and a grid,
- * tapping one zooms it open from its icon, and the View / Edit switch decides whether the apps can be changed.
+ * The first thing you see: a fake phone home screen. Tapping an icon zooms the app open from where it sits,
+ * and the View / Edit switch decides whether the apps can be changed.
  */
 @Composable
-fun PhoneHomeScreen(shell: ShellViewModel, onNavigate: (String) -> Unit) {
+fun PhoneHomeScreen(editing: Boolean, onEditingChange: (Boolean) -> Unit, onNavigate: (String) -> Unit) {
+    val app = LocalContext.current.applicationContext as StoryframeApp
     val dark = LocalStoryframeColors.current.isDark
-    val palette = shellPalette(dark)
-    val active by shell.active.collectAsState()
-    val profiles by shell.profiles.collectAsState()
-    val editing by shell.editMode.collectAsState()
-    val scope = rememberCoroutineScope()
-    var showSwitcher by remember { mutableStateOf(false) }
+    val wallpaperPath by app.themePreferences.wallpaper.collectAsState(initial = null)
     var launching by remember { mutableStateOf<LaunchInfo?>(null) }
 
-    val c = active
-    val characterApps: List<HomeApp> = if (c == null) emptyList() else c.platformList
-        .mapNotNull { id -> Platforms.all.firstOrNull { it.id == id && it.built } }
-        .map { p -> HomeApp(p.id, p.label, appBrush(p.id), { AppGlyph(p.id) }) { routeFor(shell, p, c, profiles) } }
-    val lightTile = Brush.linearGradient(listOf(Color.White, Color(0xFFF1F1F4)))
-    val cid = c?.id ?: 0L
-    val extras = listOf(
-        HomeApp("messages", "Messages", Brush.linearGradient(listOf(Color(0xFF67E27A), Color(0xFF19B93A))), {
-            Icon(Icons.Filled.Sms, null, tint = Color.White, modifier = Modifier.size(24.dp))
-        }) { ShellRoutes.messages(cid) },
-        HomeApp("photos", "Photos", lightTile, {
-            Icon(Icons.Filled.PhotoLibrary, null, tint = Color(0xFFEE5A8F), modifier = Modifier.size(24.dp))
-        }) { ShellRoutes.photos(cid) },
-        HomeApp("notes", "Notes", Brush.linearGradient(listOf(Color(0xFFFFE066), Color(0xFFF5B800))), {
-            Icon(Icons.Filled.Description, null, tint = Color.White, modifier = Modifier.size(24.dp))
-        }) { ShellRoutes.notes(cid) },
-        HomeApp("calendar", "Calendar", lightTile, {
-            Icon(Icons.Filled.CalendarMonth, null, tint = Color(0xFFE5384F), modifier = Modifier.size(24.dp))
-        }) { ShellRoutes.CALENDAR },
-        HomeApp("accounts", "Accounts", Brush.linearGradient(listOf(Color(0xFF8E8E93), Color(0xFF636366))), {
-            Icon(Icons.Filled.People, null, tint = Color.White, modifier = Modifier.size(24.dp))
-        }) { ShellRoutes.ACCOUNTS },
-        HomeApp("studio", "Studio", Brush.linearGradient(listOf(TileLavender, TileBlush)), {
-            Icon(Icons.Filled.AutoAwesome, null, tint = TileInk, modifier = Modifier.size(24.dp))
-        }) { ShellRoutes.STUDIO }
-    )
-    val dockApps = characterApps.take(4)
-    val gridApps = characterApps.drop(4) + extras
+    val open: (HomeApp, Rect) -> Unit = { a, bounds -> if (launching == null) launching = LaunchInfo(a, bounds) }
 
-    val open: (HomeApp, Rect) -> Unit = { app, bounds ->
-        if (launching == null) scope.launch { launching = LaunchInfo(app, bounds, app.route()) }
-    }
-
-    val wallpaper = if (dark) {
+    val gradient = if (dark) {
         Brush.verticalGradient(listOf(Color(0xFF241B45), Color(0xFF3B2347), Color(0xFF14101F)))
     } else {
         Brush.verticalGradient(listOf(Color(0xFFCFC6FF), Color(0xFFF2BBD9), Color(0xFFFFE3D1)))
     }
 
-    Box(Modifier.fillMaxSize().background(wallpaper)) {
+    Box(Modifier.fillMaxSize().background(gradient)) {
+        wallpaperPath?.let { path ->
+            Image(rememberAsyncImagePainter(path), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = if (dark) 0.25f else 0.08f)))
+        }
         Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp)) {
-            // top: who's phone this is, and the View / Edit switch
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                    CharacterPill(c, palette, onClick = { showSwitcher = true })
-                }
-                Spacer(Modifier.width(10.dp))
-                ModeSwitch(editing = editing, onChange = { shell.setEditMode(it) })
+                Spacer(Modifier.weight(1f))
+                ModeSwitch(editing = editing, onChange = onEditingChange)
             }
 
             Spacer(Modifier.height(22.dp))
             ClockWidget()
             Spacer(Modifier.height(30.dp))
 
-            // the grid
             Column(Modifier.weight(1f)) {
-                if (c == null) {
-                    Text(
-                        "Create a character in Studio to fill this phone.",
-                        color = Color.White, fontSize = 15.sp, textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
-                    )
-                }
-                gridApps.chunked(4).forEach { row ->
+                GridApps.chunked(4).forEach { row ->
                     Row(Modifier.fillMaxWidth().padding(bottom = 22.dp)) {
-                        row.forEach { app ->
+                        row.forEach { a ->
                             Box(Modifier.weight(1f), contentAlignment = Alignment.TopCenter) {
-                                AppIcon(app, showLabel = true, onTap = { open(app, it) })
+                                AppIcon(a, showLabel = true, onTap = { open(a, it) })
                             }
                         }
                         repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
@@ -187,19 +174,15 @@ fun PhoneHomeScreen(shell: ShellViewModel, onNavigate: (String) -> Unit) {
                 }
             }
 
-            // the dock
-            if (dockApps.isNotEmpty()) {
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(32.dp))
-                        .background(Color.White.copy(alpha = if (dark) 0.14f else 0.32f))
-                        .padding(vertical = 14.dp)
-                ) {
-                    dockApps.forEach { app ->
-                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                            AppIcon(app, showLabel = false, onTap = { open(app, it) })
-                        }
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(32.dp))
+                    .background(Color.White.copy(alpha = if (dark) 0.14f else 0.32f))
+                    .padding(vertical = 14.dp)
+            ) {
+                DockApps.forEach { a ->
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        AppIcon(a, showLabel = false, onTap = { open(a, it) })
                     }
-                    repeat(4 - dockApps.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -208,8 +191,7 @@ fun PhoneHomeScreen(shell: ShellViewModel, onNavigate: (String) -> Unit) {
             }
         }
 
-        launching?.let { l -> LaunchOverlay(l) { onNavigate(l.route) } }
-        if (showSwitcher) CharacterSwitcherSheet(shell, onDismiss = { showSwitcher = false })
+        launching?.let { l -> LaunchOverlay(l) { onNavigate(l.app.route) } }
     }
 }
 
@@ -226,7 +208,7 @@ private fun ClockWidget() {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             time, color = Color.White, fontSize = 72.sp, fontWeight = FontWeight.Light,
-            style = TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x33000000), blurRadius = 8f))
+            style = TextStyle(shadow = Shadow(Color(0x33000000), blurRadius = 8f))
         )
         Text(date, color = Color.White.copy(alpha = 0.9f), fontSize = 16.sp, fontWeight = FontWeight.Medium)
     }
@@ -278,7 +260,7 @@ private fun AppIcon(app: HomeApp, showLabel: Boolean, onTap: (Rect) -> Unit) {
             Spacer(Modifier.height(6.dp))
             Text(
                 app.label, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x66000000), blurRadius = 6f))
+                style = TextStyle(shadow = Shadow(Color(0x66000000), blurRadius = 6f))
             )
         }
     }

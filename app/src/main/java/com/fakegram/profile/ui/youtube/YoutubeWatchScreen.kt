@@ -98,6 +98,7 @@ import com.fakegram.profile.data.YoutubeCommentEntity
 import com.fakegram.profile.data.YoutubeVideoEntity
 import com.fakegram.profile.ui.components.CropShape
 import com.fakegram.profile.ui.components.rememberCropPicker
+import com.fakegram.profile.ui.phone.LocalEditMode
 
 val YtBg = Color(0xFF0F0F0F)
 val YtText = Color(0xFFFFFFFF)
@@ -117,9 +118,10 @@ private fun YtIcon(res: Int, size: Dp, tint: Color = YtText, modifier: Modifier 
 @Composable
 fun YtAvatar(uri: String?, size: Dp, onPick: ((String) -> Unit)? = null) {
     val pick = rememberCropPicker(CropShape.CIRCLE) { onPick?.invoke(it) }
+    val edit = LocalEditMode.current
     Box(
         Modifier.size(size).clip(CircleShape).background(Color(0xFF3A3A3A))
-            .then(if (onPick != null) Modifier.clickable(onClick = pick) else Modifier),
+            .then(if (onPick != null && edit) Modifier.clickable(onClick = pick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
         if (uri != null) AsyncImage(uri, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -136,7 +138,7 @@ internal fun InlineText(
     var text by remember(value) { mutableStateOf(value) }
     var focused by remember { mutableStateOf(false) }
     BasicTextField(
-        value = text, onValueChange = { text = it }, textStyle = style, singleLine = singleLine,
+        value = text, onValueChange = { text = it }, readOnly = !LocalEditMode.current, textStyle = style, singleLine = singleLine,
         cursorBrush = SolidColor(Color.White),
         modifier = modifier.then(if (wrap) Modifier.width(IntrinsicSize.Min) else Modifier).onFocusChanged {
             if (focused && !it.isFocused) { if (text != value) onCommit(text); onBlur() }
@@ -206,7 +208,7 @@ fun YoutubeWatchScreen(videoId: Long, onBack: () -> Unit, onOpenVideo: (Long) ->
             }
 
             // A small, quiet button for everything you can switch on or off. (Holding the picture opens the same menu.)
-            Box(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(14.dp)) {
+            if (LocalEditMode.current) Box(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(14.dp)) {
                 Box(
                     Modifier.size(36.dp).clip(CircleShape).background(Color(0x40FFFFFF)).clickable { menu = true },
                     contentAlignment = Alignment.Center
@@ -230,13 +232,14 @@ fun YoutubeWatchScreen(videoId: Long, onBack: () -> Unit, onOpenVideo: (Long) ->
 @Composable
 private fun RelatedVideos(current: YoutubeVideoEntity, onOpenVideo: (Long) -> Unit) {
     val app = LocalContext.current.applicationContext as StoryframeApp
-    val owner = current.characterId ?: 0L
+    val owner = 0L
+    val edit = LocalEditMode.current
     val vm: YoutubeListViewModel = viewModel(key = "ytRelated$owner", factory = YoutubeListViewModel.factory(app.repository, owner))
     val all by vm.videos.collectAsState()
     val others = all.filter { it.id != current.id }
     Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         others.forEach { o -> key(o.id) { FeedCard(o, onSave = vm::save, onOpen = { onOpenVideo(o.id) }, onDelete = { vm.delete(o.id) }) } }
-        Row(
+        if (edit) Row(
             Modifier.fillMaxWidth().clickable { vm.create("", null) { } }.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -260,10 +263,11 @@ private fun ToggleItem(label: String, on: Boolean, onClick: () -> Unit) {
 @Composable
 private fun FadeEditText(value: String, onCommit: (String) -> Unit, style: TextStyle, modifier: Modifier = Modifier, placeholder: String = "") {
     var editing by remember { mutableStateOf(false) }
+    val edit = LocalEditMode.current
     if (!editing) {
         Text(
             value.ifEmpty { placeholder }, style = if (value.isEmpty()) style.copy(color = YtSub) else style, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip,
-            modifier = modifier.fadeRight().clickable { editing = true }
+            modifier = modifier.fadeRight().clickable { if (edit) editing = true }
         )
     } else {
         val focus = remember { FocusRequester() }
@@ -291,15 +295,16 @@ private fun Modifier.fadeRight(): Modifier = this
 @Composable
 private fun MetaLine(v: YoutubeVideoEntity, editing: Boolean, setEditing: (Boolean) -> Unit, onSave: (YoutubeVideoEntity) -> Unit) {
     val body = TextStyle(color = YtSub, fontSize = 14.sp)
+    val edit = LocalEditMode.current
     if (!editing) {
         val summary = listOfNotNull(
             v.channelName.trim().trimStart('@').takeIf { it.isNotEmpty() }?.let { "@$it" },
             v.likeCount.trim().takeIf { it.isNotEmpty() }?.let { "$it likes" },
             v.viewsText.trim().takeIf { it.isNotEmpty() },
             v.timeText.trim().takeIf { it.isNotEmpty() }
-        ).joinToString("  ").ifEmpty { "Tap to add channel, views and date" }
+        ).joinToString("  ").ifEmpty { if (edit) "Tap to add channel, views and date" else "" }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.weight(1f, fill = false).clickable { setEditing(true) }, verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f, fill = false).clickable { if (edit) setEditing(true) }, verticalAlignment = Alignment.CenterVertically) {
                 Text(summary, style = body, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip, modifier = Modifier.weight(1f, fill = false).fadeRight())
                 if (v.autoDubbed) {
                     Spacer(Modifier.width(8.dp))
@@ -334,6 +339,7 @@ private fun MetaField(label: String, prefix: String, value: String, onCommit: (S
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Player(v: YoutubeVideoEntity, onBack: () -> Unit, onSave: (YoutubeVideoEntity) -> Unit, pickFrame: () -> Unit, onMenu: () -> Unit) {
+    val edit = LocalEditMode.current
     val small = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     // While you drag the bar the time follows your finger; it is saved when you let go.
     var live by remember(v.id) { mutableStateOf<Float?>(null) }
@@ -345,11 +351,11 @@ private fun Player(v: YoutubeVideoEntity, onBack: () -> Unit, onSave: (YoutubeVi
         Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black)
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() }, indication = null,
-                onClick = pickFrame, onLongClick = onMenu
+                onClick = { if (edit) pickFrame() }, onLongClick = { if (edit) onMenu() }
             )
     ) {
         if (v.thumbnailUri != null) AsyncImage(v.thumbnailUri, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        else Text("Tap to add an image", color = YtSub, fontSize = 13.sp, modifier = Modifier.align(Alignment.Center))
+        else if (edit) Text("Tap to add an image", color = YtSub, fontSize = 13.sp, modifier = Modifier.align(Alignment.Center))
 
         if (v.showControls) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x66000000), Color.Transparent, Color(0x66000000)))))
@@ -364,7 +370,7 @@ private fun Player(v: YoutubeVideoEntity, onBack: () -> Unit, onSave: (YoutubeVi
                 Spacer(Modifier.width(12.dp))
                 Icon(Icons.Filled.Cast, null, tint = Color.White, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(14.dp))
-                Icon(Icons.Outlined.ClosedCaption, "Captions", tint = Color.White, modifier = Modifier.size(21.dp).alpha(if (v.showCaption) 1f else 0.45f).clickable { onSave(v.copy(showCaption = !v.showCaption)) })
+                Icon(Icons.Outlined.ClosedCaption, "Captions", tint = Color.White, modifier = Modifier.size(21.dp).alpha(if (v.showCaption) 1f else 0.45f).clickable { if (edit) onSave(v.copy(showCaption = !v.showCaption)) })
                 Spacer(Modifier.width(14.dp))
                 Icon(Icons.Filled.Settings, null, tint = Color.White, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(8.dp))
@@ -492,13 +498,14 @@ private fun CommentsCard(comments: List<YoutubeCommentEntity>, countText: String
 
 @Composable
 private fun AdBlock(v: YoutubeVideoEntity, onPick: (String) -> Unit) {
+    val edit = LocalEditMode.current
     val pick = rememberCropPicker(CropShape.RECT_4_5, onPick)
     Box(
-        Modifier.fillMaxWidth().aspectRatio(1f).background(Color(0xFFF26B21)).clickable(onClick = pick),
+        Modifier.fillMaxWidth().aspectRatio(1f).background(Color(0xFFF26B21)).clickable { if (edit) pick() },
         contentAlignment = Alignment.Center
     ) {
         if (v.adImageUri != null) AsyncImage(v.adImageUri, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        else Text("Tap to add the ad image", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        else if (edit) Text("Tap to add the ad image", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -545,7 +552,7 @@ private fun CommentsPanel(
         }
         LazyColumn(Modifier.weight(1f)) {
             items(shown, key = { it.id }) { c -> CommentRow(c, onSave, onDelete) }
-            if (comments.isEmpty()) item { Text("No comments yet. Write one below.", color = YtSub, modifier = Modifier.padding(20.dp)) }
+            if (comments.isEmpty()) item { Text("No comments yet.", color = YtSub, modifier = Modifier.padding(20.dp)) }
         }
         Row(
             Modifier.fillMaxWidth().background(YtBg).padding(horizontal = 14.dp, vertical = 10.dp).navigationBarsPadding(),
@@ -561,7 +568,7 @@ private fun CommentsPanel(
                     modifier = Modifier.weight(1f).padding(vertical = 14.dp).onFocusChanged { if (it.isFocused) setExpanded(true) },
                     decorationBox = { inner -> Box { if (draft.isEmpty()) Text("Comment...", color = YtSub, fontSize = 16.sp); inner() } }
                 )
-                if (draft.isNotBlank()) {
+                if (draft.isNotBlank() && LocalEditMode.current) {
                     IconButton(onClick = {
                         onSave(YoutubeCommentEntity(videoId = 0, username = defaultUser.ifBlank { "user" }, text = draft.trim()))
                         draft = ""
@@ -584,10 +591,11 @@ private fun SortChip(label: String, selected: Boolean, onClick: () -> Unit) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CommentRow(c: YoutubeCommentEntity, onSave: (YoutubeCommentEntity) -> Unit, onDelete: (Long) -> Unit) {
+    val edit = LocalEditMode.current
     var menu by remember { mutableStateOf(false) }
     val sub = TextStyle(color = YtSub, fontSize = 13.sp)
     Row(
-        Modifier.fillMaxWidth().combinedClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}, onLongClick = { menu = true })
+        Modifier.fillMaxWidth().combinedClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}, onLongClick = { if (edit) menu = true })
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         YtAvatar(c.avatarUri, 36.dp) { onSave(c.copy(avatarUri = it)) }
@@ -619,7 +627,7 @@ private fun CommentRow(c: YoutubeCommentEntity, onSave: (YoutubeCommentEntity) -
             }
         }
         Box {
-            YtIcon(R.drawable.yt_more, 20.dp, modifier = Modifier.clickable { menu = true })
+            YtIcon(R.drawable.yt_more, 20.dp, modifier = Modifier.clickable { if (edit) menu = true })
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(
                     text = { Text(if (c.hasTranslation) "Hide “Translate to English”" else "Show “Translate to English”") },

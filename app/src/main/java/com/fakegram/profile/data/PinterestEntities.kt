@@ -113,6 +113,9 @@ interface PinterestDao {
     @Update
     suspend fun updatePage(page: PinterestPageEntity)
 
+    @Query("SELECT * FROM pinterest_pins")
+    fun observeAllPins(): Flow<List<PinEntity>>
+
     @Query("SELECT * FROM pinterest_pins WHERE pageId = :pageId ORDER BY position ASC, id ASC")
     fun observePins(pageId: Long): Flow<List<PinEntity>>
 

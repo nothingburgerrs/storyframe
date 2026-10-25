@@ -12,6 +12,7 @@ import android.view.PixelCopy
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import com.fakegram.profile.ui.phone.LocalEditMode
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -126,6 +127,8 @@ fun ProfileScreen(
     val uiState by viewModel.uiState.collectAsState()
     val isDark by viewModel.isDarkMode.collectAsState()
     val profile = uiState.profile
+    // View mode is the visitor's phone: nothing can be edited, Follow works.
+    val viewMode = !LocalEditMode.current
 
     var menuExpanded by remember { mutableStateOf(false) }
     var showEditProfileDialog by remember { mutableStateOf(false) }
@@ -212,13 +215,15 @@ fun ProfileScreen(
                             Icon(Icons.Filled.MoreVert, contentDescription = "More")
                         }
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                            DropdownMenuItem(text = { Text("Followed by") }, onClick = { menuExpanded = false; showFollowedByManager = true })
-                            DropdownMenuItem(text = { Text("Highlights") }, onClick = { menuExpanded = false; showHighlightsInfo = true })
-                            DropdownMenuItem(text = { Text("Settings") }, onClick = { menuExpanded = false; showSettingsSheet = true })
-                            DropdownMenuItem(
-                                text = { Text(if (isVisitorMode) "Preview as yourself" else "Preview as visitor") },
-                                onClick = { menuExpanded = false; isVisitorMode = !isVisitorMode }
-                            )
+                            if (!viewMode) {
+                                DropdownMenuItem(text = { Text("Followed by") }, onClick = { menuExpanded = false; showFollowedByManager = true })
+                                DropdownMenuItem(text = { Text("Highlights") }, onClick = { menuExpanded = false; showHighlightsInfo = true })
+                                DropdownMenuItem(text = { Text("Settings") }, onClick = { menuExpanded = false; showSettingsSheet = true })
+                                DropdownMenuItem(
+                                    text = { Text(if (isVisitorMode) "Preview as yourself" else "Preview as visitor") },
+                                    onClick = { menuExpanded = false; isVisitorMode = !isVisitorMode }
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text("Save screenshot") },
                                 onClick = { menuExpanded = false; requestSaveScreenshot() }
@@ -240,23 +245,25 @@ fun ProfileScreen(
                 ProfilePreviewContent(
                     state = uiState,
                     isExporting = isExporting,
-                    isVisitorMode = isVisitorMode,
+                    isVisitorMode = isVisitorMode || viewMode,
                     followState = followState,
-                    onEditProfileClick = { showEditProfileDialog = true },
+                    onEditProfileClick = { if (!viewMode) showEditProfileDialog = true },
                     onFollowClick = { followState = followState.next() },
-                    onAvatarClick = { showEditProfileDialog = true },
-                    onStatClick = { field -> statDialogField = field },
-                    onFollowedByClick = { showFollowedByManager = true },
+                    onAvatarClick = { if (!viewMode) showEditProfileDialog = true },
+                    onStatClick = { field -> if (!viewMode) statDialogField = field },
+                    onFollowedByClick = { if (!viewMode) showFollowedByManager = true },
                     onHighlightClick = { id ->
-                        editingHighlight = uiState.highlights.find { it.id == id }
-                        showHighlightDialog = true
+                        if (!viewMode) {
+                            editingHighlight = uiState.highlights.find { it.id == id }
+                            showHighlightDialog = true
+                        }
                     },
-                    onAddHighlightClick = { editingHighlight = null; showHighlightDialog = true },
+                    onAddHighlightClick = { if (!viewMode) { editingHighlight = null; showHighlightDialog = true } },
                     // Tap opens the post; hold (without moving) edits it; hold and drag reorders.
                     onPostClick = { post -> onOpenPost(post.id) },
-                    onPostHold = { post -> if (!isVisitorMode) editingPost = post },
-                    onAddPostClick = { tagged -> addPostForTagged = tagged; showAddPostSheet = true },
-                    onReorderPosts = { newOrder -> viewModel.reorderPosts(newOrder) }
+                    onPostHold = { post -> if (!isVisitorMode && !viewMode) editingPost = post },
+                    onAddPostClick = { tagged -> if (!viewMode) { addPostForTagged = tagged; showAddPostSheet = true } },
+                    onReorderPosts = { newOrder -> if (!viewMode) viewModel.reorderPosts(newOrder) }
                 )
             }
         }

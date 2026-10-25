@@ -22,6 +22,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import com.fakegram.profile.ui.phone.LocalEditMode
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -129,6 +130,7 @@ fun BubbleChatScreen(chatId: Long, onBack: () -> Unit) {
     val viewModel: BubbleChatViewModel = viewModel(factory = BubbleChatViewModel.factory(app, app.repository, chatId))
     val state by viewModel.state.collectAsState()
     val chat = state.chat
+    val edit = LocalEditMode.current
     val messages = remember(state.messages) { state.messages.sortedBy { it.position } }
     val accounts by app.repository.accounts.collectAsState(initial = emptyList())
 
@@ -287,13 +289,15 @@ fun BubbleChatScreen(chatId: Long, onBack: () -> Unit) {
                 actions = {
                     IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
                     DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                        DropdownMenuItem(text = { Text("Chat settings") }, onClick = { menuExpanded = false; showSettings = true })
-                        DropdownMenuItem(text = { Text("Add date divider") }, onClick = { menuExpanded = false; showDivider = true })
+                        if (edit) {
+                            DropdownMenuItem(text = { Text("Chat settings") }, onClick = { menuExpanded = false; showSettings = true })
+                            DropdownMenuItem(text = { Text("Add date divider") }, onClick = { menuExpanded = false; showDivider = true })
+                        }
                         DropdownMenuItem(text = { Text("Save screenshot") }, onClick = { menuExpanded = false; saveScreenshot() })
                         DropdownMenuItem(text = { Text("Save phone-size screenshots") }, onClick = { menuExpanded = false; saveStitched(paged = true) })
                         DropdownMenuItem(text = { Text("Save one long image") }, onClick = { menuExpanded = false; saveStitched(paged = false) })
                         DropdownMenuItem(text = { Text("Play animation") }, onClick = { menuExpanded = false; showPlayDialog = true })
-                        DropdownMenuItem(text = { Text("Clear chat") }, onClick = { menuExpanded = false; confirmClear = true })
+                        if (edit) DropdownMenuItem(text = { Text("Clear chat") }, onClick = { menuExpanded = false; confirmClear = true })
                     }
                 }
             )
@@ -334,7 +338,7 @@ fun BubbleChatScreen(chatId: Long, onBack: () -> Unit) {
                             shown.forEach { m ->
                                 key(m.id) {
                                     if (playing) PopIn { MessageRow(m, chat, theme) {} }
-                                    else MessageRow(m, chat, theme) { editing = m }
+                                    else MessageRow(m, chat, theme) { if (edit) editing = m }
                                 }
                             }
                         }
@@ -342,14 +346,14 @@ fun BubbleChatScreen(chatId: Long, onBack: () -> Unit) {
                 }
                 Box(Modifier.onSizeChanged { inputBarPx = it.height }) {
                     BubbleInputBar(theme, draft, { draft = it }) {
-                        if (draft.isNotBlank()) {
+                        if (edit && draft.isNotBlank()) {
                             viewModel.sendText(asArtist, draft.trim(), translationDraft.trim())
                             draft = ""; translationDraft = ""
                         }
                     }
                 }
             }
-            if (!playing) Composer(viewModel, chat, asArtist, { asArtist = it }, translationDraft, { translationDraft = it })
+            if (!playing && edit) Composer(viewModel, chat, asArtist, { asArtist = it }, translationDraft, { translationDraft = it })
         }
     }
 

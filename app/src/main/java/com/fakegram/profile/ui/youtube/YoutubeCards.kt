@@ -1,5 +1,6 @@
 package com.fakegram.profile.ui.youtube
 
+import com.fakegram.profile.ui.phone.LocalEditMode
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -50,6 +51,7 @@ import com.fakegram.profile.ui.components.rememberCropPicker
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun FeedCard(v: YoutubeVideoEntity, onSave: (YoutubeVideoEntity) -> Unit, onOpen: () -> Unit, onDelete: () -> Unit) {
+    val edit = LocalEditMode.current
     var menu by remember { mutableStateOf(false) }
     val pickFrame = rememberCropPicker(CropShape.RECT_16_9) { onSave(v.copy(thumbnailUri = it)) }
     // durationText is "now / total"; the badge on a card is the total.
@@ -60,12 +62,12 @@ internal fun FeedCard(v: YoutubeVideoEntity, onSave: (YoutubeVideoEntity) -> Uni
     Column(Modifier.fillMaxWidth()) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color(0xFF1A1A1A))
-                .combinedClickable(onClick = onOpen, onLongClick = { menu = true })
+                .combinedClickable(onClick = onOpen, onLongClick = { if (edit) menu = true })
         ) {
             if (v.thumbnailUri != null) AsyncImage(v.thumbnailUri, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             else Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Filled.PlayArrow, null, tint = YtSub, modifier = Modifier.size(34.dp))
-                Text("Hold to add an image", color = YtSub, fontSize = 11.sp)
+                if (edit) Text("Hold to add an image", color = YtSub, fontSize = 11.sp)
             }
             Box(Modifier.align(Alignment.BottomEnd).padding(8.dp).background(Color(0xCC000000), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 2.dp)) {
                 TimeInput(total, { onSave(v.copy(durationText = "$now / ${it.trim()}")) }, TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium))
@@ -95,7 +97,7 @@ internal fun FeedCard(v: YoutubeVideoEntity, onSave: (YoutubeVideoEntity) -> Uni
                 }
             }
             Box {
-                Icon(Icons.Filled.MoreVert, "More", tint = YtText, modifier = Modifier.padding(8.dp).size(20.dp).clickable { menu = true })
+                Icon(Icons.Filled.MoreVert, "More", tint = YtText, modifier = Modifier.padding(8.dp).size(20.dp).clickable { if (edit) menu = true })
             }
         }
     }
@@ -136,7 +138,7 @@ internal fun TimeInput(value: String, onCommit: (String) -> Unit, style: TextSty
             val text = format(new.text.filter { it.isDigit() }.take(6))
             field = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
         },
-        textStyle = style, singleLine = true,
+        readOnly = !LocalEditMode.current, textStyle = style, singleLine = true,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
         modifier = modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Min).onFocusChanged {

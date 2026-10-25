@@ -1,6 +1,10 @@
 package com.fakegram.profile.ui.home
 
 import androidx.compose.foundation.background
+import com.fakegram.profile.ui.phone.LocalEditMode
+import com.fakegram.profile.ui.phone.PhoneSearchField
+import com.fakegram.profile.ui.phone.phoneColors
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,7 +69,13 @@ fun HomeScreen(
     onProfileCreated: (Long) -> Unit = {}
 ) {
     val viewModel: HomeViewModel = viewModel(factory = HomeViewModel.factory(repository))
-    val profiles by viewModel.profiles.collectAsState()
+    val allProfiles by viewModel.profiles.collectAsState()
+    val edit = LocalEditMode.current
+    var query by rememberSaveable { mutableStateOf("") }
+    val q = query.trim().lowercase()
+    val profiles = if (q.isEmpty()) allProfiles else allProfiles.filter {
+        it.username.lowercase().contains(q) || it.displayName.lowercase().contains(q) || it.bio.lowercase().contains(q)
+    }
 
     val context = LocalContext.current
     val app = context.applicationContext as StoryframeApp
@@ -75,7 +85,7 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Instagram profiles", fontWeight = FontWeight.Bold) },
+                title = { Text("Instagram", fontWeight = FontWeight.Bold) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
                     IconButton(onClick = { scope.launch { app.themePreferences.setDarkMode(!isDark) } }) {
@@ -88,21 +98,21 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = {
+            if (edit) FloatingActionButton(onClick = {
                 viewModel.createProfile { id -> onProfileCreated(id); onOpenProfile(id) }
             }) {
                 Icon(Icons.Filled.Add, contentDescription = "New profile")
             }
         }
     ) { padding ->
-        if (profiles.isEmpty()) {
+        if (allProfiles.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No profiles yet. Tap + to create one.")
+                Text(if (edit) "No accounts yet. Tap + to create one." else "No accounts")
             }
         } else {
             LazyColumn(
@@ -110,8 +120,13 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                item {
+                    PhoneSearchField(query, { query = it }, "Search accounts", phoneColors())
+                }
+                if (profiles.isEmpty()) item { Text("No results", modifier = Modifier.padding(8.dp)) }
                 items(profiles, key = { it.id }) { profile ->
                     ProfileCard(
+                        edit = edit,
                         profile = profile,
                         onClick = { onOpenProfile(profile.id) },
                         onDuplicate = { viewModel.duplicateProfile(profile.id) },
@@ -125,6 +140,7 @@ fun HomeScreen(
 
 @Composable
 private fun ProfileCard(
+    edit: Boolean,
     profile: ProfileEntity,
     onClick: () -> Unit,
     onDuplicate: () -> Unit,
@@ -170,7 +186,7 @@ private fun ProfileCard(
                 fontSize = 12.sp
             )
         }
-        Box {
+        if (edit) Box {
             IconButton(onClick = { menuExpanded = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
             }

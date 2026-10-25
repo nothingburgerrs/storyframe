@@ -48,7 +48,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fakegram.profile.StoryframeApp
 import com.fakegram.profile.data.NoteEntity
-import com.fakegram.profile.ui.shell.LocalEditMode
 import kotlinx.coroutines.launch
 
 private val NotesYellow = Color(0xFFE6A700)

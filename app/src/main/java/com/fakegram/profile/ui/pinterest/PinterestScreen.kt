@@ -82,7 +82,7 @@ import com.fakegram.profile.data.toPinTabs
 import com.fakegram.profile.ui.components.CropShape
 import com.fakegram.profile.ui.components.InlineField
 import com.fakegram.profile.ui.components.rememberCropPicker
-import com.fakegram.profile.ui.shell.LocalEditMode
+import com.fakegram.profile.ui.phone.LocalEditMode
 import com.fakegram.profile.ui.theme.LocalStoryframeColors
 
 private val PinRed = Color(0xFFE60023)
@@ -117,9 +117,22 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
     }
     val tabs = p.tabs.toPinTabs()
     val activeTab = tabs.firstOrNull { it.id == tabId } ?: tabs.firstOrNull()
-    val searching = !edit && screen == PinScreen.SEARCH && query.isNotBlank()
-    val shown = if (searching) pins.filter { it.matchesQuery(query) }
-    else pins.filter { it.screen == screen && (screen == PinScreen.SEARCH || it.tabId == (activeTab?.id ?: 0L)) }
+    // View mode searches every pin on the phone: by tag or title, or by the search text a results page was set up under.
+    val allPins by app.repository.observeAllPins().collectAsState(initial = emptyList())
+    val allPages by app.repository.pinterestPages.collectAsState(initial = emptyList())
+    val q = query.trim().lowercase()
+    val searching = !edit && screen == PinScreen.SEARCH && q.isNotEmpty()
+    val browsingBlank = !edit && screen == PinScreen.SEARCH && q.isEmpty()
+    val shown = when {
+        searching -> allPins.filter { pin ->
+            pin.matchesQuery(q) || (pin.screen == PinScreen.SEARCH && allPages.any { pg ->
+                val sq = pg.searchQuery.trim().lowercase()
+                pg.id == pin.pageId && sq.isNotEmpty() && (sq.contains(q) || q.contains(sq))
+            })
+        }
+        browsingBlank -> emptyList()
+        else -> pins.filter { it.screen == screen && (screen == PinScreen.SEARCH || it.tabId == (activeTab?.id ?: 0L)) }
+    }
 
     val addPhotos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(20)) { uris ->
         if (uris.isNotEmpty()) pendingUris = uris
@@ -191,7 +204,7 @@ fun PinterestScreen(pageId: Long, onBack: () -> Unit) {
         // the feed
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 12.dp)) {
             if (shown.isEmpty()) {
-                Text(if (searching) "No results for “${query.trim()}”" else if (edit) "No pins here yet. Tap + below to add pictures." else "Nothing here yet.", color = sub, fontSize = 15.sp, modifier = Modifier.padding(24.dp))
+                Text(if (searching) "No results for “${query.trim()}”" else if (browsingBlank) "Search for something" else if (edit) "No pins here yet. Tap + below to add pictures." else "Nothing here yet.", color = sub, fontSize = 15.sp, modifier = Modifier.padding(24.dp))
             } else {
                 Masonry(shown, ink, sub, vm)
             }

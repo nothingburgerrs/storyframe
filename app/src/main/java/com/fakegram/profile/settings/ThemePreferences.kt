@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.map
 
@@ -13,6 +14,7 @@ class ThemePreferences(private val context: Context) {
     companion object {
         private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode")
         private val ACTIVE_CHARACTER_KEY = longPreferencesKey("active_character")
+        private val WALLPAPER_KEY = stringPreferencesKey("wallpaper")
     }
 
     val isDarkMode = context.dataStore.data.map { prefs -> prefs[DARK_MODE_KEY] ?: true }
@@ -26,5 +28,12 @@ class ThemePreferences(private val context: Context) {
 
     suspend fun setDarkMode(enabled: Boolean) {
         context.dataStore.edit { prefs -> prefs[DARK_MODE_KEY] = enabled }
+    }
+
+    /** Path of the picture used as the home screen wallpaper, or null for the built-in gradient. */
+    val wallpaper = context.dataStore.data.map { prefs -> prefs[WALLPAPER_KEY]?.takeIf { it.isNotEmpty() } }
+
+    suspend fun setWallpaper(path: String?) {
+        context.dataStore.edit { prefs -> prefs[WALLPAPER_KEY] = path.orEmpty() }
     }
 }

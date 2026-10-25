@@ -15,7 +15,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
-import com.fakegram.profile.ui.shell.LocalEditMode
+import com.fakegram.profile.ui.phone.LocalEditMode
 
 /**
  * Text you type straight into a screen instead of through a dialog. It keeps its own text while you type and

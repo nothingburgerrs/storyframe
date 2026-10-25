@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import com.fakegram.profile.ui.phone.LocalEditMode
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -130,6 +131,7 @@ fun PostViewerScreen(profileId: Long, postId: Long, onBack: () -> Unit) {
     }
     val currentPost = feed.getOrNull(listState.firstVisibleItemIndex)
 
+    val edit = LocalEditMode.current
     var menuExpanded by remember { mutableStateOf(false) }
     var showDetails by remember { mutableStateOf(false) }
     var showManageComments by remember { mutableStateOf(false) }
@@ -161,8 +163,10 @@ fun PostViewerScreen(profileId: Long, postId: Long, onBack: () -> Unit) {
                     actions = {
                         IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                            DropdownMenuItem(text = { Text("Edit post details") }, onClick = { menuExpanded = false; showDetails = true })
-                            DropdownMenuItem(text = { Text("Manage comments") }, onClick = { menuExpanded = false; showManageComments = true })
+                            if (edit) {
+                                DropdownMenuItem(text = { Text("Edit post details") }, onClick = { menuExpanded = false; showDetails = true })
+                                DropdownMenuItem(text = { Text("Manage comments") }, onClick = { menuExpanded = false; showManageComments = true })
+                            }
                             DropdownMenuItem(text = { Text("Save screenshot") }, onClick = { menuExpanded = false; saveScreenshot() })
                         }
                     }
@@ -458,6 +462,7 @@ private fun CommentsSheet(viewModel: PostViewModel, post: PostEntity, author: co
     var draft by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<CommentEntity?>(null) }
     val accounts by viewModel.accounts.collectAsState()
+    val edit = LocalEditMode.current
     val sheetBg = if (colors.isDark) Color(0xFF1E1E1E) else Color.White
     val mention = if (colors.isDark) Color(0xFF7FB4FF) else Color(0xFF00376B)
     ModalBottomSheet(
@@ -477,7 +482,7 @@ private fun CommentsSheet(viewModel: PostViewModel, post: PostEntity, author: co
                 if (comments.isEmpty()) {
                     Text("No comments yet.", color = colors.secondaryText, modifier = Modifier.padding(24.dp))
                 }
-                comments.forEach { c -> CommentRow(c, colors, mention) { editing = c } }
+                comments.forEach { c -> CommentRow(c, colors, mention) { if (edit) editing = c } }
             }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -508,7 +513,7 @@ private fun CommentsSheet(viewModel: PostViewModel, post: PostEntity, author: co
                         modifier = Modifier.weight(1f).padding(vertical = 11.dp),
                         decorationBox = { inner -> Box { if (draft.isEmpty()) Text("What do you think of this?", color = colors.secondaryText, fontSize = 13.sp); inner() } }
                     )
-                    if (draft.isNotBlank()) {
+                    if (draft.isNotBlank() && edit) {
                         Text(
                             "Post", color = Color(0xFF3797F0), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.clickable {

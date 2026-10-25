@@ -185,6 +185,7 @@ class ProfileRepository(private val db: AppDatabase) {
     val pinterestPages: Flow<List<PinterestPageEntity>> = db.pinterestDao().observePages()
     fun observePinterestPage(id: Long): Flow<PinterestPageEntity?> = db.pinterestDao().observePage(id)
     fun observePins(pageId: Long): Flow<List<PinEntity>> = db.pinterestDao().observePins(pageId)
+    fun observeAllPins(): Flow<List<PinEntity>> = db.pinterestDao().observeAllPins()
     suspend fun getPinterestPage(id: Long): PinterestPageEntity? = db.pinterestDao().getPage(id)
     suspend fun addPinterestPage(page: PinterestPageEntity): Long = db.pinterestDao().insertPage(page)
     suspend fun updatePinterestPage(page: PinterestPageEntity) = db.pinterestDao().updatePage(page)

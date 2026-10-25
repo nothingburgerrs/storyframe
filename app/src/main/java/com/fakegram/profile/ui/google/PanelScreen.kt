@@ -68,6 +68,7 @@ import com.fakegram.profile.data.PanelFactEntity
 import com.fakegram.profile.data.PanelItemEntity
 import com.fakegram.profile.data.PanelItemKind
 import com.fakegram.profile.media.MediaStorage
+import com.fakegram.profile.ui.phone.LocalEditMode
 import com.fakegram.profile.ui.profile.captureWindowRegion
 import com.fakegram.profile.ui.profile.findActivity
 import kotlinx.coroutines.launch
@@ -134,7 +135,7 @@ fun PanelScreen(panelId: Long, onBack: () -> Unit) {
                             captureBounds = android.graphics.Rect(b.left.toInt(), b.top.toInt(), b.right.toInt(), b.bottom.toInt())
                         }
                 ) {
-                    GooglePanelPreview(state = state, isDark = previewDark, edit = if (exporting) null else viewModel)
+                    GooglePanelPreview(state = state, isDark = previewDark, edit = if (exporting || !LocalEditMode.current) null else viewModel)
                 }
             }
         }

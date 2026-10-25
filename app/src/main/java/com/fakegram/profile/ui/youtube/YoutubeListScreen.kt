@@ -60,55 +60,87 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.fakegram.profile.StoryframeApp
 import com.fakegram.profile.data.YoutubeVideoEntity
-import com.fakegram.profile.ui.shell.ShellViewModel
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.SolidColor
+import com.fakegram.profile.ui.phone.LocalEditMode
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.material.icons.outlined.VideoLibrary
 
 private val YtChips = listOf("All", "Mixes", "Music", "Gaming", "Live", "Podcasts", "Recently uploaded", "Watched")
 
-/** What opening YouTube shows: the home feed of recommended videos. The + in the bar makes a new video. */
+/** What opening YouTube shows: the home feed of every video. The search icon looks through them; in Edit mode + adds one. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun YoutubeListScreen(characterId: Long, shell: ShellViewModel, onOpenVideo: (Long) -> Unit, onBack: () -> Unit) {
+fun YoutubeListScreen(onOpenVideo: (Long) -> Unit, onBack: () -> Unit) {
     val app = LocalContext.current.applicationContext as StoryframeApp
-    val vm: YoutubeListViewModel = viewModel(key = "ytList$characterId", factory = YoutubeListViewModel.factory(app.repository, characterId))
+    val vm: YoutubeListViewModel = viewModel(key = "ytList0", factory = YoutubeListViewModel.factory(app.repository, 0L))
     val videos by vm.videos.collectAsState()
-    val characters by shell.characters.collectAsState()
-    val owner = characters.firstOrNull { it.id == characterId }
+    val edit = LocalEditMode.current
+    var searching by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val q = query.trim().lowercase()
+    val shown = if (q.isEmpty()) videos else videos.filter {
+        it.title.lowercase().contains(q) || it.channelName.lowercase().contains(q)
+    }
 
-    Column(Modifier.fillMaxSize().background(YtBg)) {
+    Column(Modifier.fillMaxSize().background(YtBg).imePadding()) {
         // top bar
-        Row(Modifier.statusBarsPadding().padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = YtText, modifier = Modifier.size(20.dp)) }
-            Box(Modifier.size(width = 28.dp, height = 20.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFFFF0000)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(14.dp))
-            }
-            Spacer(Modifier.width(4.dp))
-            Text("YouTube", color = YtText, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = (-1).sp, modifier = Modifier.weight(1f))
-            Icon(Icons.Filled.Cast, null, tint = YtText, modifier = Modifier.padding(horizontal = 10.dp).size(21.dp))
-            Icon(Icons.Outlined.NotificationsNone, null, tint = YtText, modifier = Modifier.padding(horizontal = 10.dp).size(23.dp))
-            Icon(Icons.Filled.Search, null, tint = YtText, modifier = Modifier.padding(horizontal = 10.dp).size(23.dp))
-        }
-        // topic chips
-        LazyRow(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)) {
-            item {
-                Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF272727)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.Explore, null, tint = YtText, modifier = Modifier.size(18.dp))
+        if (searching) {
+            Row(Modifier.statusBarsPadding().padding(start = 4.dp, end = 12.dp, top = 6.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { searching = false; query = "" }, modifier = Modifier.size(40.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Close search", tint = YtText, modifier = Modifier.size(20.dp)) }
+                Row(Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFF272727)).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    BasicTextField(
+                        value = query, onValueChange = { query = it }, singleLine = true,
+                        textStyle = TextStyle(color = YtText, fontSize = 16.sp), cursorBrush = SolidColor(Color.White),
+                        modifier = Modifier.weight(1f),
+                        decorationBox = { inner -> Box { if (query.isEmpty()) Text("Search YouTube", color = YtSub, fontSize = 16.sp); inner() } }
+                    )
+                    if (query.isNotEmpty()) Icon(Icons.Filled.Close, "Clear", tint = YtText, modifier = Modifier.size(20.dp).clickable { query = "" })
                 }
             }
-            items(YtChips) { label ->
-                val on = label == "All"
-                Text(
-                    label, color = if (on) Color.Black else YtText, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if (on) Color.White else Color(0xFF272727)).padding(horizontal = 12.dp, vertical = 7.dp)
-                )
+        } else {
+            Row(Modifier.statusBarsPadding().padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = YtText, modifier = Modifier.size(20.dp)) }
+                Box(Modifier.size(width = 28.dp, height = 20.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFFFF0000)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                }
+                Spacer(Modifier.width(4.dp))
+                Text("YouTube", color = YtText, fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = (-1).sp, modifier = Modifier.weight(1f))
+                Icon(Icons.Filled.Cast, null, tint = YtText, modifier = Modifier.padding(horizontal = 10.dp).size(21.dp))
+                Icon(Icons.Outlined.NotificationsNone, null, tint = YtText, modifier = Modifier.padding(horizontal = 10.dp).size(23.dp))
+                Icon(Icons.Filled.Search, "Search", tint = YtText, modifier = Modifier.clickable { searching = true }.padding(horizontal = 10.dp).size(23.dp))
+            }
+            // topic chips
+            LazyRow(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)) {
+                item {
+                    Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF272727)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Explore, null, tint = YtText, modifier = Modifier.size(18.dp))
+                    }
+                }
+                items(YtChips) { label ->
+                    val on = label == "All"
+                    Text(
+                        label, color = if (on) Color.Black else YtText, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if (on) Color.White else Color(0xFF272727)).padding(horizontal = 12.dp, vertical = 7.dp)
+                    )
+                }
             }
         }
 
         // the feed
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (videos.isEmpty()) {
-                item { Text("Nothing here yet. Tap + below to add a video to the feed.", color = YtSub, fontSize = 14.sp, modifier = Modifier.padding(24.dp)) }
+            if (shown.isEmpty()) {
+                item {
+                    Text(
+                        if (q.isNotEmpty()) "No results for “${query.trim()}”" else if (edit) "Nothing here yet. Tap + below to add a video to the feed." else "No videos",
+                        color = YtSub, fontSize = 14.sp, modifier = Modifier.padding(24.dp)
+                    )
+                }
             }
-            items(videos, key = { it.id }) { v -> FeedCard(v, onSave = vm::save, onOpen = { onOpenVideo(v.id) }, onDelete = { vm.delete(v.id) }) }
+            items(shown, key = { it.id }) { v -> FeedCard(v, onSave = vm::save, onOpen = { onOpenVideo(v.id) }, onDelete = { vm.delete(v.id) }) }
             item { Spacer(Modifier.height(12.dp)) }
         }
 
@@ -116,15 +148,11 @@ fun YoutubeListScreen(characterId: Long, shell: ShellViewModel, onOpenVideo: (Lo
         Row(Modifier.fillMaxWidth().background(YtBg).navigationBarsPadding().padding(top = 6.dp, bottom = 4.dp), verticalAlignment = Alignment.Bottom) {
             NavItem(Icons.Filled.Home, "Home", true, Modifier.weight(1f)) {}
             NavItem(Icons.Outlined.PlayCircleOutline, "Shorts", false, Modifier.weight(1f)) {}
-            Box(Modifier.weight(1f).clickable { vm.create(owner?.name.orEmpty(), owner?.avatarUri, onOpenVideo) }, contentAlignment = Alignment.Center) {
+            Box(Modifier.weight(1f).clickable { if (edit) vm.create("", null, onOpenVideo) }, contentAlignment = Alignment.Center) {
                 Icon(Icons.Outlined.AddCircleOutline, "New video", tint = YtText, modifier = Modifier.size(38.dp))
             }
             NavItem(Icons.Outlined.Subscriptions, "Subscriptions", false, Modifier.weight(1f)) {}
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                YtAvatar(owner?.avatarUri, 24.dp)
-                Spacer(Modifier.height(2.dp))
-                Text("You", color = YtSub, fontSize = 10.sp)
-            }
+            NavItem(Icons.Outlined.VideoLibrary, "Library", false, Modifier.weight(1f)) {}
         }
     }
 }
