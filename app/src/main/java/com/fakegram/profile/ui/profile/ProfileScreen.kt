@@ -117,7 +117,8 @@ internal suspend fun captureWindowRegion(activity: Activity, bounds: Rect): Bitm
 fun ProfileScreen(
     profileId: Long,
     onBack: () -> Unit,
-    onOpenPost: (Long) -> Unit = {}
+    onOpenPost: (Long) -> Unit = {},
+    onEditPostDetails: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as StoryframeApp
@@ -352,7 +353,11 @@ fun ProfileScreen(
     }
 
     editingPost?.let { post ->
-        EditPostSheet(viewModel = viewModel, post = post, onOpenPost = { onOpenPost(post.id) }, onDismiss = { editingPost = null })
+        EditPostSheet(
+            viewModel = viewModel, post = post,
+            onOpenPost = { onOpenPost(post.id) }, onEditDetails = { onEditPostDetails(post.id) },
+            onDismiss = { editingPost = null }
+        )
     }
 
     // ---- Overflow read-only dialogs ----

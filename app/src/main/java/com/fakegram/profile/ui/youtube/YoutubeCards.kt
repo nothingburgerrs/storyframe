@@ -45,61 +45,52 @@ import com.fakegram.profile.ui.components.CropShape
 import com.fakegram.profile.ui.components.rememberCropPicker
 
 /**
- * One recommended video, used by the home feed and by the list under a video's comments. Everything on it is
- * edited right here: the length badge, the title, the channel / views / time line, and the avatar. Tap the
- * picture to open the video; hold it for change-image / delete.
+ * One recommended video, used by the home feed and by the list under a video's comments. Tap the picture to open it.
+ * In Edit mode, tapping the text underneath or holding the picture opens the editor for this video.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun FeedCard(v: YoutubeVideoEntity, onSave: (YoutubeVideoEntity) -> Unit, onOpen: () -> Unit, onDelete: () -> Unit) {
+internal fun FeedCard(v: YoutubeVideoEntity, onOpen: () -> Unit, onEdit: () -> Unit) {
     val edit = LocalEditMode.current
-    var menu by remember { mutableStateOf(false) }
-    val pickFrame = rememberCropPicker(CropShape.RECT_16_9) { onSave(v.copy(thumbnailUri = it)) }
     // durationText is "now / total"; the badge on a card is the total.
-    val now = v.durationText.substringBefore("/").trim().ifEmpty { "0:00" }
     val total = if ("/" in v.durationText) v.durationText.substringAfter("/").trim() else ""
     val sub = TextStyle(color = YtSub, fontSize = 12.sp)
 
     Column(Modifier.fillMaxWidth()) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color(0xFF1A1A1A))
-                .combinedClickable(onClick = onOpen, onLongClick = { if (edit) menu = true })
+                .combinedClickable(onClick = onOpen, onLongClick = { if (edit) onEdit() })
         ) {
             if (v.thumbnailUri != null) AsyncImage(v.thumbnailUri, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             else Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Filled.PlayArrow, null, tint = YtSub, modifier = Modifier.size(34.dp))
-                if (edit) Text("Hold to add an image", color = YtSub, fontSize = 11.sp)
+                if (edit) Text("Tap the text below to add a picture", color = YtSub, fontSize = 11.sp)
             }
-            Box(Modifier.align(Alignment.BottomEnd).padding(8.dp).background(Color(0xCC000000), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 2.dp)) {
-                TimeInput(total, { onSave(v.copy(durationText = "$now / ${it.trim()}")) }, TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium))
-            }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text("Open") }, onClick = { menu = false; onOpen() })
-                DropdownMenuItem(text = { Text("Change image") }, onClick = { menu = false; pickFrame() })
-                DropdownMenuItem(text = { Text("Delete video") }, onClick = { menu = false; onDelete() })
+            if (total.isNotEmpty()) {
+                Text(
+                    total, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp).background(Color(0xCC000000), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 2.dp)
+                )
             }
         }
-        Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 12.dp), verticalAlignment = Alignment.Top) {
-            YtAvatar(v.channelAvatarUri, 36.dp) { onSave(v.copy(channelAvatarUri = it)) }
+        Row(
+            Modifier.fillMaxWidth().clickable(enabled = edit, onClick = onEdit).padding(start = 12.dp, end = 12.dp, top = 12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            YtAvatar(v.channelAvatarUri, 36.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                InlineText(
-                    v.title, { onSave(v.copy(title = it.trim())) },
-                    TextStyle(color = YtText, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium),
-                    Modifier.fillMaxWidth(), placeholder = "Video title"
+                Text(
+                    v.title.ifBlank { "Video title" }, color = YtText, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium,
+                    maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    InlineText(v.channelName.trimStart('@'), { onSave(v.copy(channelName = it.trim().trimStart('@'))) }, sub, Modifier.weight(1f, fill = false), placeholder = "channel", singleLine = true)
-                    Text(" • ", style = sub)
-                    InlineText(v.viewsText, { onSave(v.copy(viewsText = it.trim())) }, sub, placeholder = "views", singleLine = true, wrap = true)
-                    Text(" • ", style = sub)
-                    InlineText(v.timeText, { onSave(v.copy(timeText = it.trim())) }, sub, placeholder = "time", singleLine = true, wrap = true)
-                }
+                Text(
+                    listOf(v.channelName.trimStart('@'), v.viewsText, v.timeText).filter { it.isNotBlank() }.joinToString(" • "),
+                    style = sub, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
             }
-            Box {
-                Icon(Icons.Filled.MoreVert, "More", tint = YtText, modifier = Modifier.padding(8.dp).size(20.dp).clickable { if (edit) menu = true })
-            }
+            Icon(Icons.Filled.MoreVert, null, tint = YtText, modifier = Modifier.padding(start = 8.dp, top = 4.dp).size(20.dp))
         }
     }
 }

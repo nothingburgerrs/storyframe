@@ -1,5 +1,12 @@
 package com.fakegram.profile.ui.youtube
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import com.fakegram.profile.ui.theme.inAppFont
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -115,7 +122,7 @@ private fun YtIcon(res: Int, size: Dp, tint: Color = YtText, modifier: Modifier 
     Icon(painterResource(res), null, tint = tint, modifier = modifier.size(size))
 }
 
-/** A circular photo. When [onPick] is set, tapping it opens the photo picker and a circular crop. */
+/** A circular photo. When [onPick] is set (and Edit mode is on), tapping it opens the photo picker and a circular crop. */
 @Composable
 fun YtAvatar(uri: String?, size: Dp, onPick: ((String) -> Unit)? = null) {
     val pick = rememberCropPicker(CropShape.CIRCLE) { onPick?.invoke(it) }
@@ -130,118 +137,105 @@ fun YtAvatar(uri: String?, size: Dp, onPick: ((String) -> Unit)? = null) {
     }
 }
 
-/** Text you type straight into the page; it is saved when you tap away. */
-@Composable
-internal fun InlineText(
-    value: String, onCommit: (String) -> Unit, style: TextStyle, modifier: Modifier = Modifier,
-    placeholder: String = "", singleLine: Boolean = false, wrap: Boolean = false, onBlur: () -> Unit = {}
-) {
-    var text by remember(value) { mutableStateOf(value) }
-    var focused by remember { mutableStateOf(false) }
-    BasicTextField(
-        value = text, onValueChange = { text = it }, readOnly = !LocalEditMode.current, textStyle = style.inAppFont(), singleLine = singleLine,
-        cursorBrush = SolidColor(Color.White),
-        modifier = modifier.then(if (wrap) Modifier.width(IntrinsicSize.Min) else Modifier).onFocusChanged {
-            if (focused && !it.isFocused) { if (text != value) onCommit(text); onBlur() }
-            focused = it.isFocused
-        },
-        decorationBox = { inner ->
-            Box {
-                if (text.isEmpty()) Text(placeholder, style = style.copy(color = YtSub.copy(alpha = 0.6f)))
-                inner()
-            }
-        }
-    )
-}
-
-/** The YouTube watch page. Everything is edited where it is: tap the text, the picture or the comment line. */
+/** The YouTube watch page. In Edit mode tap the picture, the title or a comment to open its editor. */
 @Composable
 fun YoutubeWatchScreen(videoId: Long, onBack: () -> Unit, onOpenVideo: (Long) -> Unit = {}) {
     val app = LocalContext.current.applicationContext as StoryframeApp
     val vm: YoutubeWatchViewModel = viewModel(key = "ytWatch$videoId", factory = YoutubeWatchViewModel.factory(app.repository, videoId))
     val video by vm.video.collectAsState()
     val comments by vm.comments.collectAsState()
+    val edit = LocalEditMode.current
     var showComments by remember { mutableStateOf(false) }
-    var editingMeta by remember { mutableStateOf(false) }
-    var menu by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+    var editVideo by remember { mutableStateOf(false) }
+    var editCommentId by remember { mutableStateOf<Long?>(null) }
     val v = video
 
-    var expanded by remember { mutableStateOf(false) }
+    // Back closes the comments first, like the real app.
+    BackHandler(enabled = showComments) { if (expanded) expanded = false else showComments = false }
+
     Box(Modifier.fillMaxSize().background(YtBg)) {
         if (v == null) {
             Text("Video not found", color = YtSub, modifier = Modifier.align(Alignment.Center))
         } else {
-            val pickFrame = rememberCropPicker(CropShape.RECT_16_9) { vm.saveVideo(v.copy(thumbnailUri = it)) }
+            val openEditor = { if (edit) editVideo = true }
             Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
                 // The player stays on top while comments are open; it only folds away when the panel is pulled all the way up.
-                if (!(showComments && expanded)) Player(v, onBack, vm::saveVideo, pickFrame, onMenu = { menu = true })
-                if (showComments) {
-                    CommentsPanel(
-                        comments, v.channelName, expanded, { expanded = it },
-                        onClose = { showComments = false; expanded = false },
-                        onSave = vm::saveComment, onDelete = vm::deleteComment, modifier = Modifier.weight(1f)
-                    )
-                } else {
-                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 60.dp)) {
+                AnimatedVisibility(visible = !(showComments && expanded)) {
+                    Player(v, onBack, vm::update, onEdit = openEditor)
+                }
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 60.dp)) {
                         Column(Modifier.padding(horizontal = 14.dp)) {
                             Spacer(Modifier.height(14.dp))
                             if (v.showPostInfo) {
-                                FadeEditText(
-                                    v.title, { vm.saveVideo(v.copy(title = it.trim())) },
-                                    TextStyle(color = YtText, fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold),
-                                    Modifier.fillMaxWidth(), placeholder = "Video title"
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                MetaLine(v, editingMeta, { editingMeta = it }, vm::saveVideo)
+                                Column(Modifier.fillMaxWidth().clickable(enabled = edit) { editVideo = true }) {
+                                    Text(
+                                        v.title.ifBlank { "Video title" }, color = YtText, fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold,
+                                        maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    MetaLine(v)
+                                }
                                 Spacer(Modifier.height(16.dp))
-                                ActionRow(v, vm::saveVideo)
+                                ActionRow(v, vm::update)
                                 Spacer(Modifier.height(16.dp))
                             }
-                            CommentsCard(comments, v.commentCount, { vm.saveVideo(v.copy(commentCount = it.trim())) }, onClick = { showComments = true })
+                            CommentsCard(comments, v.commentCount, onClick = { showComments = true })
                         }
                         if (v.showAd) {
                             Spacer(Modifier.height(14.dp))
-                            AdBlock(v) { vm.saveVideo(v.copy(adImageUri = it)) }
+                            AdBlock(v, onTap = openEditor)
                         }
                         if (v.showRelated) RelatedVideos(v, onOpenVideo)
                     }
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = showComments,
+                        enter = slideInVertically(tween(260)) { it } + fadeIn(tween(200)),
+                        exit = slideOutVertically(tween(220)) { it } + fadeOut(tween(160))
+                    ) {
+                        CommentsPanel(
+                            comments, v.channelName, expanded, { expanded = it },
+                            onClose = { showComments = false; expanded = false },
+                            onNew = vm::saveComment, onEdit = { editCommentId = it }, modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
+        }
 
-            // A small, quiet button for everything you can switch on or off. (Holding the picture opens the same menu.)
-            if (LocalEditMode.current) Box(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(14.dp)) {
-                Box(
-                    Modifier.size(36.dp).clip(CircleShape).background(Color(0x40FFFFFF)).clickable { menu = true },
-                    contentAlignment = Alignment.Center
-                ) { Icon(Icons.Filled.Tune, "Video options", tint = Color(0xCCFFFFFF), modifier = Modifier.size(18.dp)) }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    ToggleItem("Player buttons", v.showControls) { menu = false; vm.saveVideo(v.copy(showControls = !v.showControls)) }
-                    ToggleItem("Caption", v.showCaption) { menu = false; vm.saveVideo(v.copy(showCaption = !v.showCaption)) }
-                    ToggleItem("Post layout (title, channel, buttons)", v.showPostInfo) { menu = false; vm.saveVideo(v.copy(showPostInfo = !v.showPostInfo)) }
-                    ToggleItem("Recommended videos", v.showRelated) { menu = false; vm.saveVideo(v.copy(showRelated = !v.showRelated)) }
-                    ToggleItem("Ad under comments", v.showAd) { menu = false; vm.saveVideo(v.copy(showAd = !v.showAd)) }
-                    ToggleItem("Auto-dubbed", v.autoDubbed) { menu = false; vm.saveVideo(v.copy(autoDubbed = !v.autoDubbed)) }
-                    DropdownMenuItem(text = { Text("Change image") }, onClick = { menu = false; pickFrame() })
-                    DropdownMenuItem(text = { Text("Delete video") }, onClick = { menu = false; vm.deleteVideo(); onBack() })
-                }
+        if (v != null && editVideo) {
+            VideoEditSheet(
+                video = v, update = { t -> vm.update(t) },
+                onDelete = { vm.deleteVideo(); editVideo = false; onBack() },
+                onDismiss = { editVideo = false }
+            )
+        }
+        editCommentId?.let { id ->
+            comments.firstOrNull { it.id == id }?.let { c ->
+                CommentEditSheet(
+                    comment = c, update = { t -> vm.updateComment(id, t) },
+                    onDelete = { vm.deleteComment(id); editCommentId = null },
+                    onDismiss = { editCommentId = null }
+                )
             }
         }
     }
 }
 
-/** Other videos under the comments (and the ad), each one editable right here. + adds another. */
+/** Other videos under the comments. In Edit mode + adds another and tapping a video's text edits it. */
 @Composable
 private fun RelatedVideos(current: YoutubeVideoEntity, onOpenVideo: (Long) -> Unit) {
     val app = LocalContext.current.applicationContext as StoryframeApp
-    val owner = 0L
     val edit = LocalEditMode.current
-    val vm: YoutubeListViewModel = viewModel(key = "ytRelated$owner", factory = YoutubeListViewModel.factory(app.repository, owner))
+    val vm: YoutubeListViewModel = viewModel(key = "ytRelated0", factory = YoutubeListViewModel.factory(app.repository, 0L))
     val all by vm.videos.collectAsState()
+    var editId by remember { mutableStateOf<Long?>(null) }
     val others = all.filter { it.id != current.id }
     Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        others.forEach { o -> key(o.id) { FeedCard(o, onSave = vm::save, onOpen = { onOpenVideo(o.id) }, onDelete = { vm.delete(o.id) }) } }
+        others.forEach { o -> key(o.id) { FeedCard(o, onOpen = { onOpenVideo(o.id) }, onEdit = { editId = o.id }) } }
         if (edit) Row(
-            Modifier.fillMaxWidth().clickable { vm.create("", null) { } }.padding(horizontal = 14.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().clickable { vm.create("", null) { id -> editId = id } }.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Filled.Add, null, tint = YtText, modifier = Modifier.size(22.dp))
@@ -249,31 +243,37 @@ private fun RelatedVideos(current: YoutubeVideoEntity, onOpenVideo: (Long) -> Un
             Text("Add a recommended video", color = YtText, fontSize = 14.sp)
         }
     }
+    editId?.let { id ->
+        all.firstOrNull { it.id == id }?.let { vid ->
+            VideoEditSheet(
+                video = vid, update = { t -> vm.update(id, t) },
+                onDelete = { vm.delete(id); editId = null }, onDismiss = { editId = null }
+            )
+        }
+    }
 }
 
+/** "@channel  183 likes  6.4K views  4w ago ... more" on ONE line: a long line fades out at the right and "more" stays at the edge. */
 @Composable
-private fun ToggleItem(label: String, on: Boolean, onClick: () -> Unit) {
-    DropdownMenuItem(
-        text = { Text(label) },
-        trailingIcon = { Text(if (on) "On" else "Off", fontWeight = FontWeight.SemiBold) },
-        onClick = onClick
-    )
-}
-
-/** Text shown on one line that fades out at the right edge when it is too long; tap to edit it. */
-@Composable
-private fun FadeEditText(value: String, onCommit: (String) -> Unit, style: TextStyle, modifier: Modifier = Modifier, placeholder: String = "") {
-    var editing by remember { mutableStateOf(false) }
-    val edit = LocalEditMode.current
-    if (!editing) {
-        Text(
-            value.ifEmpty { placeholder }, style = if (value.isEmpty()) style.copy(color = YtSub) else style, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip,
-            modifier = modifier.fadeRight().clickable { if (edit) editing = true }
-        )
-    } else {
-        val focus = remember { FocusRequester() }
-        InlineText(value, { onCommit(it) }, style, modifier.focusRequester(focus), placeholder = placeholder, onBlur = { editing = false })
-        androidx.compose.runtime.LaunchedEffect(Unit) { focus.requestFocus() }
+private fun MetaLine(v: YoutubeVideoEntity) {
+    val body = TextStyle(color = YtSub, fontSize = 14.sp)
+    val summary = listOfNotNull(
+        v.channelName.trim().trimStart('@').takeIf { it.isNotEmpty() }?.let { "@$it" },
+        v.likeCount.trim().takeIf { it.isNotEmpty() }?.let { "$it likes" },
+        v.viewsText.trim().takeIf { it.isNotEmpty() },
+        v.timeText.trim().takeIf { it.isNotEmpty() }
+    ).joinToString("  ")
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically) {
+            Text(summary, style = body, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip, modifier = Modifier.weight(1f, fill = false).fadeRight())
+            if (v.autoDubbed) {
+                Spacer(Modifier.width(8.dp))
+                YtIcon(R.drawable.yt_dubbed, 18.dp, YtSub)
+                Spacer(Modifier.width(2.dp))
+                Text("Auto-dubbed", style = body.copy(color = YtText, fontWeight = FontWeight.Medium), maxLines = 1)
+            }
+        }
+        Text("  more", style = body.copy(color = YtText, fontWeight = FontWeight.SemiBold), maxLines = 1)
     }
 }
 
@@ -289,57 +289,9 @@ private fun Modifier.fadeRight(): Modifier = this
         )
     }
 
-/**
- * "@channel  183 likes  6.4K views  4w ago ... more" on ONE line: a long line fades out at the right and "more"
- * stays at the edge. Tap the line to edit its parts.
- */
-@Composable
-private fun MetaLine(v: YoutubeVideoEntity, editing: Boolean, setEditing: (Boolean) -> Unit, onSave: (YoutubeVideoEntity) -> Unit) {
-    val body = TextStyle(color = YtSub, fontSize = 14.sp)
-    val edit = LocalEditMode.current
-    if (!editing) {
-        val summary = listOfNotNull(
-            v.channelName.trim().trimStart('@').takeIf { it.isNotEmpty() }?.let { "@$it" },
-            v.likeCount.trim().takeIf { it.isNotEmpty() }?.let { "$it likes" },
-            v.viewsText.trim().takeIf { it.isNotEmpty() },
-            v.timeText.trim().takeIf { it.isNotEmpty() }
-        ).joinToString("  ").ifEmpty { if (edit) "Tap to add channel, views and date" else "" }
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.weight(1f, fill = false).clickable { if (edit) setEditing(true) }, verticalAlignment = Alignment.CenterVertically) {
-                Text(summary, style = body, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip, modifier = Modifier.weight(1f, fill = false).fadeRight())
-                if (v.autoDubbed) {
-                    Spacer(Modifier.width(8.dp))
-                    YtIcon(R.drawable.yt_dubbed, 18.dp, YtSub)
-                    Spacer(Modifier.width(2.dp))
-                    Text("Auto-dubbed", style = body.copy(color = YtText, fontWeight = FontWeight.Medium), maxLines = 1)
-                }
-            }
-            Text("  more", style = body.copy(color = YtText, fontWeight = FontWeight.SemiBold), maxLines = 1)
-        }
-    } else {
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(YtCard).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            MetaField("Channel", "@", v.channelName.trimStart('@')) { onSave(v.copy(channelName = it.trim().trimStart('@'))) }
-            MetaField("Likes", "", v.likeCount) { onSave(v.copy(likeCount = it.trim())) }
-            MetaField("Views", "", v.viewsText) { onSave(v.copy(viewsText = it.trim())) }
-            MetaField("Posted", "", v.timeText) { onSave(v.copy(timeText = it.trim())) }
-            TextButton(onClick = { setEditing(false) }, modifier = Modifier.align(Alignment.End)) { Text("Done", color = YtText) }
-        }
-    }
-}
-
-@Composable
-private fun MetaField(label: String, prefix: String, value: String, onCommit: (String) -> Unit) {
-    val style = TextStyle(color = YtText, fontSize = 15.sp)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = YtSub, fontSize = 13.sp, modifier = Modifier.width(64.dp))
-        if (prefix.isNotEmpty()) Text(prefix, style = style)
-        InlineText(value, onCommit, style, Modifier.weight(1f), placeholder = label.lowercase(), singleLine = true)
-    }
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun Player(v: YoutubeVideoEntity, onBack: () -> Unit, onSave: (YoutubeVideoEntity) -> Unit, pickFrame: () -> Unit, onMenu: () -> Unit) {
+private fun Player(v: YoutubeVideoEntity, onBack: () -> Unit, update: ((YoutubeVideoEntity) -> YoutubeVideoEntity) -> Unit, onEdit: () -> Unit) {
     val edit = LocalEditMode.current
     val small = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     // While you drag the bar the time follows your finger; it is saved when you let go.
@@ -352,11 +304,11 @@ private fun Player(v: YoutubeVideoEntity, onBack: () -> Unit, onSave: (YoutubeVi
         Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black)
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() }, indication = null,
-                onClick = { if (edit) pickFrame() }, onLongClick = { if (edit) onMenu() }
+                onClick = { if (edit) onEdit() }, onLongClick = { if (edit) onEdit() }
             )
     ) {
         if (v.thumbnailUri != null) AsyncImage(v.thumbnailUri, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        else if (edit) Text("Tap to add an image", color = YtSub, fontSize = 13.sp, modifier = Modifier.align(Alignment.Center))
+        else if (edit) Text("Tap to add a picture", color = YtSub, fontSize = 13.sp, modifier = Modifier.align(Alignment.Center))
 
         if (v.showControls) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x66000000), Color.Transparent, Color(0x66000000)))))
@@ -371,7 +323,7 @@ private fun Player(v: YoutubeVideoEntity, onBack: () -> Unit, onSave: (YoutubeVi
                 Spacer(Modifier.width(12.dp))
                 Icon(Icons.Filled.Cast, null, tint = Color.White, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(14.dp))
-                Icon(Icons.Outlined.ClosedCaption, "Captions", tint = Color.White, modifier = Modifier.size(21.dp).alpha(if (v.showCaption) 1f else 0.45f).clickable { if (edit) onSave(v.copy(showCaption = !v.showCaption)) })
+                Icon(Icons.Outlined.ClosedCaption, "Captions", tint = Color.White, modifier = Modifier.size(21.dp).alpha(if (v.showCaption) 1f else 0.45f))
                 Spacer(Modifier.width(14.dp))
                 Icon(Icons.Filled.Settings, null, tint = Color.White, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(8.dp))
@@ -387,23 +339,28 @@ private fun Player(v: YoutubeVideoEntity, onBack: () -> Unit, onSave: (YoutubeVi
             ) {
                 Text(formatSeconds((shown * totalSeconds).toInt()), style = small)
                 Text(" / ", style = small)
-                TimeInput(totalText, { onSave(v.copy(durationText = "${formatSeconds((shown * parseSeconds(it)).toInt())} / $it")) }, small, placeholder = "0:00")
+                Text(totalText.ifEmpty { "0:00" }, style = small)
             }
             Box(
                 Modifier.align(Alignment.BottomEnd).padding(end = 10.dp, bottom = 26.dp).size(28.dp).clip(CircleShape).background(Color(0x99000000)),
                 contentAlignment = Alignment.Center
             ) { Icon(Icons.Filled.Fullscreen, null, tint = Color.White, modifier = Modifier.size(17.dp)) }
         }
-        if (v.showCaption) InlineText(
-            v.subtitleText, { onSave(v.copy(subtitleText = it.trim())) }, small.copy(fontSize = 14.sp, fontWeight = FontWeight.Normal),
-            Modifier.align(Alignment.BottomCenter).padding(bottom = if (v.showControls) 50.dp else 18.dp).background(Color(0xCC000000), RoundedCornerShape(3.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
-            placeholder = "caption", singleLine = true, wrap = true
+        if (v.showCaption && v.subtitleText.isNotBlank()) Text(
+            v.subtitleText, style = small.copy(fontSize = 14.sp, fontWeight = FontWeight.Normal),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = if (v.showControls) 50.dp else 18.dp).background(Color(0xCC000000), RoundedCornerShape(3.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
         )
         // Always there, like in the app: a thin progress line along the bottom edge.
         SeekBar(
             fraction = shown, showThumb = v.showControls, modifier = Modifier.align(Alignment.BottomStart),
             onLive = { live = it },
-            onCommit = { f -> live = null; onSave(v.copy(progress = f, durationText = "${formatSeconds((f * totalSeconds).toInt())} / $totalText")) }
+            onCommit = { f ->
+                live = null
+                update { cur ->
+                    val total = if ("/" in cur.durationText) cur.durationText.substringAfter("/").trim() else ""
+                    cur.copy(progress = f, durationText = "${formatSeconds((f * parseSeconds(total)).toInt())} / $total")
+                }
+            }
         )
     }
 }
@@ -444,19 +401,19 @@ private fun PlayerBubble(icon: ImageVector, size: Dp) {
 
 /** Avatar, Subscribe pill, then the action icons packed at the right edge, like the real app. */
 @Composable
-private fun ActionRow(v: YoutubeVideoEntity, onSave: (YoutubeVideoEntity) -> Unit) {
+private fun ActionRow(v: YoutubeVideoEntity, update: ((YoutubeVideoEntity) -> YoutubeVideoEntity) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        YtAvatar(v.channelAvatarUri, 34.dp) { onSave(v.copy(channelAvatarUri = it)) }
+        YtAvatar(v.channelAvatarUri, 34.dp)
         Spacer(Modifier.width(12.dp))
         if (!v.subscribed) {
             Text(
                 "Subscribe", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1,
                 modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Color(0xFFF1F1F1))
-                    .clickable { onSave(v.copy(subscribed = true)) }.padding(horizontal = 16.dp, vertical = 9.dp)
+                    .clickable { update { it.copy(subscribed = true) } }.padding(horizontal = 16.dp, vertical = 9.dp)
             )
         } else {
             Row(
-                Modifier.clip(RoundedCornerShape(20.dp)).background(YtChip).clickable { onSave(v.copy(subscribed = false)) }
+                Modifier.clip(RoundedCornerShape(20.dp)).background(YtChip).clickable { update { it.copy(subscribed = false) } }
                     .padding(horizontal = 16.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -476,14 +433,14 @@ private fun ActionRow(v: YoutubeVideoEntity, onSave: (YoutubeVideoEntity) -> Uni
 }
 
 @Composable
-private fun CommentsCard(comments: List<YoutubeCommentEntity>, countText: String, onCount: (String) -> Unit, onClick: () -> Unit) {
+private fun CommentsCard(comments: List<YoutubeCommentEntity>, countText: String, onClick: () -> Unit) {
     val first = comments.firstOrNull()
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(YtCard).clickable(onClick = onClick).padding(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Comments", color = YtText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.width(8.dp))
             // The number can be anything (e.g. 12K) without writing that many comments; blank = real count.
-            InlineText(countText.ifBlank { comments.size.toString() }, onCount, TextStyle(color = YtSub, fontSize = 14.sp), Modifier.weight(1f), placeholder = comments.size.toString(), singleLine = true)
+            Text(countText.ifBlank { comments.size.toString() }, color = YtSub, fontSize = 14.sp, modifier = Modifier.weight(1f))
             Box(Modifier.size(width = 16.dp, height = 6.dp).clip(RoundedCornerShape(3.dp)).background(YtText))
             Spacer(Modifier.width(4.dp))
             Box(Modifier.size(6.dp).clip(CircleShape).background(YtSub))
@@ -492,21 +449,20 @@ private fun CommentsCard(comments: List<YoutubeCommentEntity>, countText: String
         Row(verticalAlignment = Alignment.CenterVertically) {
             YtAvatar(first?.avatarUri, 28.dp)
             Spacer(Modifier.width(12.dp))
-            Text(first?.text ?: "Tap to add a comment", color = if (first != null) YtText else YtSub, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(first?.text ?: "No comments yet", color = if (first != null) YtText else YtSub, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
 @Composable
-private fun AdBlock(v: YoutubeVideoEntity, onPick: (String) -> Unit) {
+private fun AdBlock(v: YoutubeVideoEntity, onTap: () -> Unit) {
     val edit = LocalEditMode.current
-    val pick = rememberCropPicker(CropShape.RECT_4_5, onPick)
     Box(
-        Modifier.fillMaxWidth().aspectRatio(1f).background(Color(0xFFF26B21)).clickable { if (edit) pick() },
+        Modifier.fillMaxWidth().aspectRatio(1f).background(Color(0xFFF26B21)).clickable(enabled = edit, onClick = onTap),
         contentAlignment = Alignment.Center
     ) {
         if (v.adImageUri != null) AsyncImage(v.adImageUri, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        else if (edit) Text("Tap to add the ad image", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        else if (edit) Text("Tap to add the ad picture", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -517,8 +473,9 @@ private fun AdBlock(v: YoutubeVideoEntity, onPick: (String) -> Unit) {
 @Composable
 private fun CommentsPanel(
     comments: List<YoutubeCommentEntity>, defaultUser: String, expanded: Boolean, setExpanded: (Boolean) -> Unit,
-    onClose: () -> Unit, onSave: (YoutubeCommentEntity) -> Unit, onDelete: (Long) -> Unit, modifier: Modifier = Modifier
+    onClose: () -> Unit, onNew: (YoutubeCommentEntity) -> Unit, onEdit: (Long) -> Unit, modifier: Modifier = Modifier
 ) {
+    val edit = LocalEditMode.current
     var newestFirst by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf("") }
     val shown = if (newestFirst) comments.reversed() else comments
@@ -552,10 +509,10 @@ private fun CommentsPanel(
             }
         }
         LazyColumn(Modifier.weight(1f)) {
-            items(shown, key = { it.id }) { c -> CommentRow(c, onSave, onDelete) }
+            items(shown, key = { it.id }) { c -> CommentRow(c, onEdit = { if (edit) onEdit(c.id) }) }
             if (comments.isEmpty()) item { Text("No comments yet.", color = YtSub, modifier = Modifier.padding(20.dp)) }
         }
-        Row(
+        if (edit) Row(
             Modifier.fillMaxWidth().background(YtBg).padding(horizontal = 14.dp, vertical = 10.dp).navigationBarsPadding(),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -567,11 +524,11 @@ private fun CommentsPanel(
                     value = draft, onValueChange = { draft = it }, maxLines = 4, cursorBrush = SolidColor(Color.White),
                     textStyle = TextStyle(color = YtText, fontSize = 16.sp).inAppFont(),
                     modifier = Modifier.weight(1f).padding(vertical = 14.dp).onFocusChanged { if (it.isFocused) setExpanded(true) },
-                    decorationBox = { inner -> Box { if (draft.isEmpty()) Text("Comment...", color = YtSub, fontSize = 16.sp); inner() } }
+                    decorationBox = { inner -> Box { if (draft.isEmpty()) Text("Add a comment...", color = YtSub, fontSize = 16.sp); inner() } }
                 )
-                if (draft.isNotBlank() && LocalEditMode.current) {
+                if (draft.isNotBlank()) {
                     IconButton(onClick = {
-                        onSave(YoutubeCommentEntity(videoId = 0, username = defaultUser.ifBlank { "user" }, text = draft.trim()))
+                        onNew(YoutubeCommentEntity(videoId = 0, username = defaultUser.ifBlank { "user" }, text = draft.trim()))
                         draft = ""
                     }) { Icon(Icons.AutoMirrored.Filled.Send, "Post", tint = YtText) }
                 }
@@ -588,33 +545,24 @@ private fun SortChip(label: String, selected: Boolean, onClick: () -> Unit) {
     )
 }
 
-/** One comment, editable in place. Tap the avatar to change it; the ... button has delete, replies and the translate link. */
-@OptIn(ExperimentalFoundationApi::class)
+/** One comment. In Edit mode tap it to change anything about it. */
 @Composable
-private fun CommentRow(c: YoutubeCommentEntity, onSave: (YoutubeCommentEntity) -> Unit, onDelete: (Long) -> Unit) {
-    val edit = LocalEditMode.current
-    var menu by remember { mutableStateOf(false) }
+private fun CommentRow(c: YoutubeCommentEntity, onEdit: () -> Unit) {
     val sub = TextStyle(color = YtSub, fontSize = 13.sp)
     Row(
-        Modifier.fillMaxWidth().combinedClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}, onLongClick = { if (edit) menu = true })
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+        Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        YtAvatar(c.avatarUri, 36.dp) { onSave(c.copy(avatarUri = it)) }
+        YtAvatar(c.avatarUri, 36.dp)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("@", style = sub)
-                InlineText(c.username.trimStart('@'), { onSave(c.copy(username = it.trim().trimStart('@'))) }, sub, placeholder = "username", singleLine = true, wrap = true)
-                Text(DOT, style = sub)
-                InlineText(c.timeText, { onSave(c.copy(timeText = it.trim())) }, sub, placeholder = "time", singleLine = true, wrap = true)
-            }
+            Text("@" + c.username.trimStart('@') + DOT + c.timeText, style = sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(2.dp))
-            InlineText(c.text, { onSave(c.copy(text = it.trim())) }, TextStyle(color = YtText, fontSize = 16.sp, lineHeight = 22.sp), Modifier.fillMaxWidth(), placeholder = "comment")
+            Text(c.text, color = YtText, fontSize = 16.sp, lineHeight = 22.sp, modifier = Modifier.fillMaxWidth())
             if (c.hasTranslation) Text("Translate to English", color = YtSub, fontSize = 15.sp, modifier = Modifier.padding(top = 14.dp))
             Row(Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 YtIcon(R.drawable.yt_like, 22.dp)
                 Spacer(Modifier.width(8.dp))
-                InlineText(c.likeCount, { onSave(c.copy(likeCount = it.trim())) }, TextStyle(color = YtText, fontSize = 14.sp), Modifier.widthIn(min = 18.dp), placeholder = "0", singleLine = true, wrap = true)
+                Text(c.likeCount.ifBlank { "" }, color = YtText, fontSize = 14.sp, modifier = Modifier.widthIn(min = 18.dp))
                 Spacer(Modifier.width(30.dp))
                 YtIcon(R.drawable.yt_dislike, 22.dp)
                 Spacer(Modifier.width(32.dp))
@@ -627,17 +575,6 @@ private fun CommentRow(c: YoutubeCommentEntity, onSave: (YoutubeCommentEntity) -
                 }
             }
         }
-        Box {
-            YtIcon(R.drawable.yt_more, 20.dp, modifier = Modifier.clickable { if (edit) menu = true })
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(
-                    text = { Text(if (c.hasTranslation) "Hide “Translate to English”" else "Show “Translate to English”") },
-                    onClick = { menu = false; onSave(c.copy(hasTranslation = !c.hasTranslation)) }
-                )
-                DropdownMenuItem(text = { Text("Add a reply") }, onClick = { menu = false; onSave(c.copy(replyCount = c.replyCount + 1)) })
-                if (c.replyCount > 0) DropdownMenuItem(text = { Text("Remove a reply") }, onClick = { menu = false; onSave(c.copy(replyCount = c.replyCount - 1)) })
-                DropdownMenuItem(text = { Text("Delete comment") }, onClick = { menu = false; onDelete(c.id) })
-            }
-        }
+        YtIcon(R.drawable.yt_more, 20.dp)
     }
 }

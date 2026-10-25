@@ -12,7 +12,8 @@ import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -65,7 +66,11 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInParent
@@ -220,6 +225,7 @@ fun ProfilePreviewContent(
             colors = colors,
             carouselCounts = state.carouselCounts,
             allowReorder = selectedTab == ProfileTabKind.POSTS,
+            allowEdit = showAddAffordances,
             showAddTile = showAddAffordances && (selectedTab == ProfileTabKind.POSTS || selectedTab == ProfileTabKind.TAGGED),
             isTaggedTab = selectedTab == ProfileTabKind.TAGGED,
             onPostClick = onPostClick,
@@ -664,6 +670,7 @@ private fun PostsGridInteractive(
     colors: StoryframeColors,
     carouselCounts: Map<Long, Int>,
     allowReorder: Boolean,
+    allowEdit: Boolean,
     showAddTile: Boolean,
     isTaggedTab: Boolean,
     onPostClick: (PostEntity) -> Unit,
@@ -713,57 +720,84 @@ private fun PostsGridInteractive(
 
         var fingerPos by remember { mutableStateOf(Offset.Zero) }
         var grabOffset by remember { mutableStateOf(Offset.Zero) }
-        var movedPx by remember { mutableStateOf(0f) }
-        var heldPost by remember { mutableStateOf<PostEntity?>(null) }
 
-        val dragModifier = if (allowReorder) {
-            Modifier.pointerInput(cellW, cellH) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { start ->
-                        val slot = slotAt(start)
-                        if (slot in orderedPosts.indices) {
-                            draggedId = orderedPosts[slot].id
-                            grabOffset = start - slotOffset(slot)
-                            fingerPos = start
-                            movedPx = 0f
-                            heldPost = orderedPosts[slot]
-                        }
-                    },
-                    onDrag = { change, amount ->
-                        change.consume()
-                        val id = draggedId ?: return@detectDragGesturesAfterLongPress
-                        fingerPos += amount
-                        movedPx += kotlin.math.abs(amount.x) + kotlin.math.abs(amount.y)
-                        val from = orderedPosts.indexOfFirst { it.id == id }
-                        val to = slotAt(fingerPos).coerceIn(0, orderedPosts.lastIndex)
-                        if (from >= 0 && to != from) {
-                            val mutable = orderedPosts.toMutableList()
-                            mutable.add(to, mutable.removeAt(from))
-                            orderedPosts = mutable
-                        }
-                    },
-                    onDragEnd = {
-                        draggedId = null
-                        // Held without moving: that is "edit this post"; moving it is a reorder.
-                        val held = heldPost
-                        if (movedPx < 24f && held != null) { orderedPosts = posts; onPostHold(held) } else onReorder(orderedPosts)
-                        heldPost = null
-                    },
-                    onDragCancel = {
-                        draggedId = null
-                        orderedPosts = posts
+        val haptics = LocalHapticFeedback.current
+
+        // One detector for the whole grid, so a tap, a hold and a drag can never fire together:
+        //   tap            -> open the post
+        //   hold (Edit)    -> edit sheet, or, if the finger moves while held, drag the post to a new place
+        //   quick swipe    -> the page scrolls as usual
+        val gestureModifier = Modifier.pointerInput(cellW, cellH, allowEdit, allowReorder) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                val startSlot = slotAt(down.position)
+                val target = orderedPosts.getOrNull(startSlot) ?: return@awaitEachGesture
+                val slop = viewConfiguration.touchSlop
+
+                // 0 = tap, 1 = scroll or cancelled, 2 = still down after the hold time
+                val early: Int? = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                    var result = 1
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id }
+                        if (change == null || change.isConsumed) { result = 1; break }
+                        if (change.changedToUpIgnoreConsumed()) { change.consume(); result = 0; break }
+                        if ((change.position - down.position).getDistance() > slop) { result = 1; break }
                     }
-                )
+                    result
+                }
+                when (early) {
+                    0 -> onPostClick(target)
+                    null -> {
+                        if (!allowEdit) {
+                            // Not editing: a long press is just a slow tap.
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.changedToUpIgnoreConsumed()) { change.consume(); onPostClick(target); break }
+                                if ((change.position - down.position).getDistance() > slop) break
+                            }
+                        } else {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            draggedId = target.id
+                            grabOffset = down.position - slotOffset(startSlot)
+                            fingerPos = down.position
+                            var moved = 0f
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (change.changedToUpIgnoreConsumed()) { change.consume(); break }
+                                val delta = change.positionChange()
+                                if (delta != Offset.Zero) {
+                                    change.consume()
+                                    moved += delta.getDistance()
+                                    fingerPos = change.position
+                                    if (allowReorder && moved > slop) {
+                                        val from = orderedPosts.indexOfFirst { it.id == target.id }
+                                        val to = slotAt(fingerPos).coerceIn(0, orderedPosts.lastIndex)
+                                        if (from >= 0 && to != from) {
+                                            val mutable = orderedPosts.toMutableList()
+                                            mutable.add(to, mutable.removeAt(from))
+                                            orderedPosts = mutable
+                                        }
+                                    }
+                                }
+                            }
+                            draggedId = null
+                            if (allowReorder && moved > slop) onReorder(orderedPosts)
+                            else { orderedPosts = posts; onPostHold(target) }
+                        }
+                    }
+                    else -> {}
+                }
             }
-        } else {
-            Modifier
         }
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(heightDp)
-                .then(dragModifier)
+                .then(gestureModifier)
         ) {
             orderedPosts.forEachIndexed { index, post ->
                 key(post.id) {
@@ -781,7 +815,6 @@ private fun PostsGridInteractive(
                                 scaleY = s
                                 alpha = if (isDragged) 0.92f else 1f
                             }
-                            .clickable { onPostClick(post) }
                     ) {
                         PostThumb(post = post, carouselCount = carouselCounts[post.id] ?: 0)
                     }

@@ -174,6 +174,7 @@ class ProfileRepository(private val db: AppDatabase) {
     fun observeYoutubeVideo(id: Long): Flow<YoutubeVideoEntity?> = db.youtubeDao().observeVideo(id)
     fun observeYoutubeComments(videoId: Long): Flow<List<YoutubeCommentEntity>> = db.youtubeDao().observeComments(videoId)
     suspend fun getYoutubeVideo(id: Long): YoutubeVideoEntity? = db.youtubeDao().getVideo(id)
+    suspend fun getYoutubeComments(videoId: Long): List<YoutubeCommentEntity> = db.youtubeDao().getComments(videoId)
     suspend fun addYoutubeVideo(video: YoutubeVideoEntity): Long = db.youtubeDao().insertVideo(video)
     suspend fun updateYoutubeVideo(video: YoutubeVideoEntity) = db.youtubeDao().updateVideo(video.copy(updatedAt = System.currentTimeMillis()))
     suspend fun deleteYoutubeVideo(id: Long) = db.youtubeDao().deleteVideo(id)

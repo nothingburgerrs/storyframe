@@ -1,5 +1,9 @@
 package com.fakegram.profile.ui.bubble
 
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import com.fakegram.profile.ui.phone.phoneColors
 import com.fakegram.profile.ui.theme.inAppFont
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -282,26 +286,21 @@ fun BubbleChatScreen(chatId: Long, onBack: () -> Unit) {
 
     Scaffold(
         topBar = {
-            if (!playing) TopAppBar(
-                title = { Text(chat?.title?.ifBlank { "Chat" } ?: "Chat", maxLines = 1) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
-                },
-                actions = {
-                    IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
-                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                        if (edit) {
-                            DropdownMenuItem(text = { Text("Chat settings") }, onClick = { menuExpanded = false; showSettings = true })
-                            DropdownMenuItem(text = { Text("Add date divider") }, onClick = { menuExpanded = false; showDivider = true })
-                        }
-                        DropdownMenuItem(text = { Text("Save screenshot") }, onClick = { menuExpanded = false; saveScreenshot() })
-                        DropdownMenuItem(text = { Text("Save phone-size screenshots") }, onClick = { menuExpanded = false; saveStitched(paged = true) })
-                        DropdownMenuItem(text = { Text("Save one long image") }, onClick = { menuExpanded = false; saveStitched(paged = false) })
-                        DropdownMenuItem(text = { Text("Play animation") }, onClick = { menuExpanded = false; showPlayDialog = true })
-                        if (edit) DropdownMenuItem(text = { Text("Clear chat") }, onClick = { menuExpanded = false; confirmClear = true })
-                    }
+            if (!playing) ChatHeader(
+                title = chat?.title?.ifBlank { chat.artistName }?.ifBlank { "Chat" } ?: "Chat",
+                avatarUri = chat?.artistAvatarUri, onBack = onBack,
+                menuExpanded = menuExpanded, onMenu = { menuExpanded = it }
+            ) {
+                if (edit) {
+                    DropdownMenuItem(text = { Text("Chat settings") }, onClick = { menuExpanded = false; showSettings = true })
+                    DropdownMenuItem(text = { Text("Add date divider") }, onClick = { menuExpanded = false; showDivider = true })
                 }
-            )
+                DropdownMenuItem(text = { Text("Save screenshot") }, onClick = { menuExpanded = false; saveScreenshot() })
+                DropdownMenuItem(text = { Text("Save phone-size screenshots") }, onClick = { menuExpanded = false; saveStitched(paged = true) })
+                DropdownMenuItem(text = { Text("Save one long image") }, onClick = { menuExpanded = false; saveStitched(paged = false) })
+                DropdownMenuItem(text = { Text("Play animation") }, onClick = { menuExpanded = false; showPlayDialog = true })
+                if (edit) DropdownMenuItem(text = { Text("Clear chat") }, onClick = { menuExpanded = false; confirmClear = true })
+            }
         }
     ) { padding ->
         if (chat == null) {
@@ -412,6 +411,32 @@ fun BubbleChatScreen(chatId: Long, onBack: () -> Unit) {
             confirmButton = { TextButton(onClick = { viewModel.clearChat(); confirmClear = false }) { Text("Clear") } },
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } }
         )
+    }
+}
+
+/** Storyframe's own top row (outside the screenshot): back, avatar and name in the middle, menu on the right. Same look as Messages. */
+@Composable
+private fun ChatHeader(
+    title: String, avatarUri: String?, onBack: () -> Unit, menuExpanded: Boolean, onMenu: (Boolean) -> Unit,
+    menuItems: @Composable () -> Unit
+) {
+    val c = phoneColors()
+    Box(Modifier.fillMaxWidth().background(c.card).statusBarsPadding().padding(vertical = 6.dp)) {
+        Icon(
+            Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color(0xFF7C8CFF),
+            modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp).size(44.dp).clickable(onClick = onBack).padding(10.dp)
+        )
+        Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFB7A4FF)), contentAlignment = Alignment.Center) {
+                if (avatarUri != null) AsyncImage(avatarUri, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                else Text(title.take(1).uppercase(), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Text(title, color = c.text, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 200.dp))
+        }
+        Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)) {
+            Icon(Icons.Filled.MoreVert, "More", tint = Color(0xFF7C8CFF), modifier = Modifier.size(44.dp).clickable { onMenu(true) }.padding(10.dp))
+            DropdownMenu(expanded = menuExpanded, onDismissRequest = { onMenu(false) }) { menuItems() }
+        }
     }
 }
 
@@ -606,29 +631,32 @@ private fun Composer(
         if (uri != null) viewModel.sendImage(asArtist, uri)
     }
 
-    Surface(tonalElevation = 3.dp, shadowElevation = 6.dp) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Send as", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                FilterChip(selected = asArtist, onClick = { onAsArtist(true) }, label = { Text(chat.artistName.ifBlank { "Artist" }, maxLines = 1) })
-                FilterChip(selected = !asArtist, onClick = { onAsArtist(false) }, label = { Text("Me") })
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = { showTranslation = !showTranslation; if (!showTranslation) onTranslation("") }) {
-                    Icon(
-                        Icons.Filled.Translate, "Translation line",
-                        tint = if (showTranslation) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                IconButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
-                    Icon(Icons.Filled.Image, "Send photo")
-                }
-            }
-            if (showTranslation) {
-                OutlinedTextField(
-                    value = translation, onValueChange = onTranslation, singleLine = true,
-                    placeholder = { Text("Translation for the next message") }, modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
-                )
-            }
+    val c = phoneColors()
+    Column(Modifier.fillMaxWidth().background(c.bg).navigationBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            // One pill that says who the next message is from; tap to swap, like Messages.
+            Text(
+                if (asArtist) chat.artistName.ifBlank { "Artist" } else "Me",
+                color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 160.dp).clip(RoundedCornerShape(50)).background(if (asArtist) Color(0xFF7C8CFF) else Color(0xFF8E8E93))
+                    .clickable { onAsArtist(!asArtist) }.padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+            Text("tap to switch", color = c.sub, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Icon(
+                Icons.Filled.Translate, "Translation line",
+                tint = if (showTranslation) Color(0xFF7C8CFF) else c.sub,
+                modifier = Modifier.size(40.dp).clickable { showTranslation = !showTranslation; if (!showTranslation) onTranslation("") }.padding(8.dp)
+            )
+            Icon(
+                Icons.Filled.Image, "Send photo", tint = c.sub,
+                modifier = Modifier.size(40.dp).clickable { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }.padding(8.dp)
+            )
+        }
+        if (showTranslation) {
+            OutlinedTextField(
+                value = translation, onValueChange = onTranslation, singleLine = true,
+                placeholder = { Text("Translation for the next message") }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+            )
         }
     }
 }

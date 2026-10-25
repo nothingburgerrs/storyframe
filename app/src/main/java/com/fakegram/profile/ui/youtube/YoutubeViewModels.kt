@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Videos of one character (characterId 0 = every video). */
 class YoutubeListViewModel(private val repository: ProfileRepository, private val characterId: Long) : ViewModel() {
@@ -37,6 +39,15 @@ class YoutubeListViewModel(private val repository: ProfileRepository, private va
         viewModelScope.launch { repository.updateYoutubeVideo(video) }
     }
 
+    private val lock = Mutex()
+
+    /** Changes one video from its latest saved state, so quick edits never overwrite each other. */
+    fun update(id: Long, transform: (YoutubeVideoEntity) -> YoutubeVideoEntity) {
+        viewModelScope.launch {
+            lock.withLock { repository.getYoutubeVideo(id)?.let { repository.updateYoutubeVideo(transform(it)) } }
+        }
+    }
+
     companion object {
         fun factory(repository: ProfileRepository, characterId: Long): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
@@ -55,6 +66,20 @@ class YoutubeWatchViewModel(private val repository: ProfileRepository, private v
 
     fun saveVideo(video: YoutubeVideoEntity) {
         viewModelScope.launch { repository.updateYoutubeVideo(video) }
+    }
+
+    private val lock = Mutex()
+
+    fun update(transform: (YoutubeVideoEntity) -> YoutubeVideoEntity) {
+        viewModelScope.launch {
+            lock.withLock { repository.getYoutubeVideo(videoId)?.let { repository.updateYoutubeVideo(transform(it)) } }
+        }
+    }
+
+    fun updateComment(id: Long, transform: (YoutubeCommentEntity) -> YoutubeCommentEntity) {
+        viewModelScope.launch {
+            lock.withLock { repository.getYoutubeComments(videoId).firstOrNull { it.id == id }?.let { repository.updateYoutubeComment(transform(it)) } }
+        }
     }
 
     fun deleteVideo() {

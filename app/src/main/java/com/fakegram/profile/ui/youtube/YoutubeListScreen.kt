@@ -81,6 +81,7 @@ fun YoutubeListScreen(onOpenVideo: (Long) -> Unit, onBack: () -> Unit) {
     val videos by vm.videos.collectAsState()
     val edit = LocalEditMode.current
     var searching by rememberSaveable { mutableStateOf(false) }
+    var editId by rememberSaveable { mutableStateOf<Long?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     val q = query.trim().lowercase()
     val shown = if (q.isEmpty()) videos else videos.filter {
@@ -141,7 +142,7 @@ fun YoutubeListScreen(onOpenVideo: (Long) -> Unit, onBack: () -> Unit) {
                     )
                 }
             }
-            items(shown, key = { it.id }) { v -> FeedCard(v, onSave = vm::save, onOpen = { onOpenVideo(v.id) }, onDelete = { vm.delete(v.id) }) }
+            items(shown, key = { it.id }) { v -> FeedCard(v, onOpen = { onOpenVideo(v.id) }, onEdit = { editId = v.id }) }
             item { Spacer(Modifier.height(12.dp)) }
         }
 
@@ -149,13 +150,26 @@ fun YoutubeListScreen(onOpenVideo: (Long) -> Unit, onBack: () -> Unit) {
         Row(Modifier.fillMaxWidth().background(YtBg).navigationBarsPadding().padding(top = 6.dp, bottom = 4.dp), verticalAlignment = Alignment.Bottom) {
             NavItem(Icons.Filled.Home, "Home", true, Modifier.weight(1f)) {}
             NavItem(Icons.Outlined.PlayCircleOutline, "Shorts", false, Modifier.weight(1f)) {}
-            Box(Modifier.weight(1f).clickable { if (edit) vm.create("", null, onOpenVideo) }, contentAlignment = Alignment.Center) {
+            Box(Modifier.weight(1f).clickable { if (edit) vm.create("", null) { id -> editId = id } }, contentAlignment = Alignment.Center) {
                 Icon(Icons.Outlined.AddCircleOutline, "New video", tint = YtText, modifier = Modifier.size(38.dp))
             }
             NavItem(Icons.Outlined.Subscriptions, "Subscriptions", false, Modifier.weight(1f)) {}
             NavItem(Icons.Outlined.VideoLibrary, "Library", false, Modifier.weight(1f)) {}
         }
     }
+
+    EditHost(editId, videos, vm) { editId = null }
+}
+
+@Composable
+private fun EditHost(editId: Long?, videos: List<com.fakegram.profile.data.YoutubeVideoEntity>, vm: YoutubeListViewModel, onClose: () -> Unit) {
+    val video = videos.firstOrNull { it.id == editId } ?: return
+    VideoEditSheet(
+        video = video,
+        update = { transform -> vm.update(video.id, transform) },
+        onDelete = { vm.delete(video.id); onClose() },
+        onDismiss = onClose
+    )
 }
 
 @Composable

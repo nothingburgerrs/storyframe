@@ -1,5 +1,8 @@
 package com.fakegram.profile.ui.editor
 
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -113,8 +116,9 @@ fun AddPostSheet(viewModel: EditorViewModel, forTagged: Boolean = false, onDismi
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun EditPostSheet(viewModel: EditorViewModel, post: PostEntity, onOpenPost: () -> Unit = {}, onDismiss: () -> Unit) {
-    val sheetState = rememberModalBottomSheetState()
+fun EditPostSheet(viewModel: EditorViewModel, post: PostEntity, onOpenPost: () -> Unit = {}, onEditDetails: () -> Unit = {}, onDismiss: () -> Unit) {
+    // Fully open and scrollable, so every option (Delete included) is always reachable.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     var replaceCropUri by remember { mutableStateOf<Uri?>(null) }
     var replaceCropIsVideo by remember { mutableStateOf(false) }
@@ -142,9 +146,14 @@ fun EditPostSheet(viewModel: EditorViewModel, post: PostEntity, onOpenPost: () -
 
     if (replaceCropUri == null) {
         ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp)) {
                 Text("Edit post", modifier = Modifier.padding(bottom = 12.dp))
                 Button(
+                    onClick = { onDismiss(); onEditDetails() },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Edit caption, likes, date and comments") }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
                     onClick = { onDismiss(); onOpenPost() },
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Open post") }
@@ -186,7 +195,7 @@ fun EditPostSheet(viewModel: EditorViewModel, post: PostEntity, onOpenPost: () -
                 OutlinedButton(
                     onClick = { viewModel.deletePost(post.id); onDismiss() },
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Delete") }
+                ) { Text("Delete post", color = androidx.compose.ui.graphics.Color(0xFFD32F2F)) }
                 Spacer(Modifier.height(8.dp))
             }
         }

@@ -199,10 +199,20 @@ private fun ChatScreen(thread: SmsThreadEntity, edit: Boolean, colors: PhoneColo
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MessagesBlue, modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp).size(44.dp).clickable(onClick = onBack).padding(10.dp))
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.clip(CircleShape).clickable { if (edit) pickAvatar() }) { ContactAvatar(thread, 44.dp, colors) }
-                InlineField(
-                    thread.contactName, { v -> scope.launch { dao.updateThread(thread.copy(contactName = v.trim())) } },
-                    TextStyle(color = colors.text, fontSize = 12.sp, textAlign = TextAlign.Center), placeholder = "Name", singleLine = true, wrap = true, cursorColor = colors.text
-                )
+                // A fixed, centred box: a name that is too long is cut off with "…" instead of sliding around inside a tiny field.
+                if (edit) {
+                    InlineField(
+                        thread.contactName, { v -> scope.launch { dao.updateThread(thread.copy(contactName = v.trim())) } },
+                        TextStyle(color = colors.text, fontSize = 12.sp, textAlign = TextAlign.Center),
+                        modifier = Modifier.widthIn(min = 90.dp, max = 200.dp),
+                        placeholder = "Name", singleLine = true, cursorColor = colors.text
+                    )
+                } else {
+                    Text(
+                        thread.contactName, color = colors.text, fontSize = 12.sp, textAlign = TextAlign.Center,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 200.dp)
+                    )
+                }
             }
         }
         HorizontalDivider(color = colors.line)

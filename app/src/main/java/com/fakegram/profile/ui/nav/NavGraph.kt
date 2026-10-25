@@ -3,7 +3,6 @@ package com.fakegram.profile.ui.nav
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -55,7 +54,7 @@ import com.fakegram.profile.ui.youtube.YoutubeWatchScreen
 
 private const val ROUTE_PROFILE = "profile/{profileId}"
 private const val ROUTE_PANEL = "panel/{panelId}"
-private const val ROUTE_POST = "post/{profileId}/{postId}"
+private const val ROUTE_POST = "post/{profileId}/{postId}?details={details}"
 private const val ROUTE_CHAT = "bubble/{chatId}"
 private const val ROUTE_YT_VIDEO = "video/{videoId}"
 
@@ -77,11 +76,15 @@ fun StoryframeNavHost(repository: ProfileRepository) {
             NavHost(
                 navController = navController,
                 startDestination = PhoneRoutes.HOME,
-                // Apps grow in from the home screen and shrink back out, a bit like a real phone.
-                enterTransition = { fadeIn(tween(220)) + scaleIn(tween(300), initialScale = 0.94f) },
-                exitTransition = { fadeOut(tween(160)) },
-                popEnterTransition = { fadeIn(tween(220)) },
-                popExitTransition = { fadeOut(tween(200)) + scaleOut(tween(260), targetScale = 0.94f) }
+                // An app is revealed under the icon that zoomed open (see PhoneHomeScreen), moves inside an app are plain
+                // fades, and closing an app to the home screen shrinks it away, a bit like a real phone.
+                enterTransition = { fadeIn(tween(180)) },
+                exitTransition = { fadeOut(tween(120)) },
+                popEnterTransition = { fadeIn(tween(150)) },
+                popExitTransition = {
+                    if (targetState.destination.route == PhoneRoutes.HOME) fadeOut(tween(200)) + scaleOut(tween(240), targetScale = 0.92f)
+                    else fadeOut(tween(140))
+                }
             ) {
                 composable(PhoneRoutes.HOME) {
                     PhoneHomeScreen(
@@ -111,20 +114,23 @@ fun StoryframeNavHost(repository: ProfileRepository) {
                     ProfileScreen(
                         profileId = profileId,
                         onBack = { navController.popBackStack() },
-                        onOpenPost = { postId -> navController.navigate("post/$profileId/$postId") }
+                        onOpenPost = { postId -> navController.navigate("post/$profileId/$postId") },
+                        onEditPostDetails = { postId -> navController.navigate("post/$profileId/$postId?details=true") }
                     )
                 }
                 composable(
                     ROUTE_POST,
                     arguments = listOf(
                         navArgument("profileId") { type = NavType.LongType },
-                        navArgument("postId") { type = NavType.LongType }
+                        navArgument("postId") { type = NavType.LongType },
+                        navArgument("details") { type = NavType.BoolType; defaultValue = false }
                     )
                 ) { backStackEntry ->
                     PostViewerScreen(
                         profileId = backStackEntry.arguments?.getLong("profileId") ?: 0L,
                         postId = backStackEntry.arguments?.getLong("postId") ?: 0L,
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        openDetails = backStackEntry.arguments?.getBoolean("details") ?: false
                     )
                 }
 

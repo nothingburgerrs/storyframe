@@ -73,7 +73,7 @@ data class YoutubeCommentEntity(
 
 @Dao
 interface YoutubeDao {
-    @Query("SELECT * FROM youtube_videos ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM youtube_videos ORDER BY createdAt DESC, id DESC")
     fun observeVideos(): Flow<List<YoutubeVideoEntity>>
 
     @Query("SELECT * FROM youtube_videos WHERE id = :id")

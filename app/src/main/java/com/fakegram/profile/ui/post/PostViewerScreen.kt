@@ -109,7 +109,7 @@ private val IgRepostGreen = Color(0xFF50AB4E)
  * viewer sees (caption, counts, date, comments) is editable from the app bar menu.
  */
 @Composable
-fun PostViewerScreen(profileId: Long, postId: Long, onBack: () -> Unit) {
+fun PostViewerScreen(profileId: Long, postId: Long, onBack: () -> Unit, openDetails: Boolean = false) {
     val context = LocalContext.current
     val app = context.applicationContext as StoryframeApp
     val viewModel: PostViewModel = viewModel(factory = PostViewModel.factory(app, app.repository, profileId))
@@ -135,6 +135,8 @@ fun PostViewerScreen(profileId: Long, postId: Long, onBack: () -> Unit) {
     val edit = LocalEditMode.current
     var menuExpanded by remember { mutableStateOf(false) }
     var showDetails by remember { mutableStateOf(false) }
+    // Coming from the post's edit sheet: open the details form as soon as the post is on screen.
+    androidx.compose.runtime.LaunchedEffect(jumped) { if (jumped && openDetails && edit) showDetails = true }
     var showManageComments by remember { mutableStateOf(false) }
     var commentsFor by remember { mutableStateOf<PostEntity?>(null) }
 
