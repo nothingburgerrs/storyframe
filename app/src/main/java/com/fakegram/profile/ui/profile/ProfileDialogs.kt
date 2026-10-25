@@ -367,6 +367,8 @@ fun HighlightEditDialog(
 @Composable
 fun FollowedByManagerDialog(
     entries: List<FollowedByEntity>,
+    accounts: List<com.fakegram.profile.data.AccountEntity> = emptyList(),
+    onAddAccount: (com.fakegram.profile.data.AccountEntity) -> Unit = {},
     onDismiss: () -> Unit,
     onAdd: (String, Uri?) -> Unit,
     onEditUsername: (Long, String) -> Unit,
@@ -374,6 +376,7 @@ fun FollowedByManagerDialog(
     onMove: (FollowedByEntity, Int) -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    var showAccountPicker by remember { mutableStateOf(false) }
     var editingEntry by remember { mutableStateOf<FollowedByEntity?>(null) }
     val sorted = entries.sortedBy { it.position }
 
@@ -413,11 +416,19 @@ fun FollowedByManagerDialog(
                 }
                 Spacer(Modifier.height(8.dp))
                 TextButton(onClick = { showAddDialog = true }) { Text("+ Add account") }
+                TextButton(onClick = { showAccountPicker = true }) { Text("+ Add saved account") }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
     )
 
+    if (showAccountPicker) {
+        com.fakegram.profile.ui.accounts.AccountPickerDialog(
+            accounts = accounts,
+            onDismiss = { showAccountPicker = false },
+            onPick = { a -> showAccountPicker = false; onAddAccount(a) }
+        )
+    }
     if (showAddDialog) {
         AddFollowedByEntryDialog(
             onDismiss = { showAddDialog = false },

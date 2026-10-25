@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
@@ -59,7 +60,9 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     repository: ProfileRepository,
-    onOpenProfile: (Long) -> Unit
+    onOpenProfile: (Long) -> Unit,
+    onBack: () -> Unit,
+    onProfileCreated: (Long) -> Unit = {}
 ) {
     val viewModel: HomeViewModel = viewModel(factory = HomeViewModel.factory(repository))
     val profiles by viewModel.profiles.collectAsState()
@@ -72,7 +75,8 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Storyframe", fontWeight = FontWeight.Bold) },
+                title = { Text("Instagram profiles", fontWeight = FontWeight.Bold) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
                     IconButton(onClick = { scope.launch { app.themePreferences.setDarkMode(!isDark) } }) {
                         Icon(
@@ -85,7 +89,7 @@ fun HomeScreen(
         },
         floatingActionButton = {
             FloatingActionButton(onClick = {
-                viewModel.createProfile { id -> onOpenProfile(id) }
+                viewModel.createProfile { id -> onProfileCreated(id); onOpenProfile(id) }
             }) {
                 Icon(Icons.Filled.Add, contentDescription = "New profile")
             }

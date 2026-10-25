@@ -66,7 +66,7 @@ import kotlinx.coroutines.launch
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 
-private fun android.content.Context.findActivity(): Activity? {
+internal fun android.content.Context.findActivity(): Activity? {
     var ctx = this
     while (ctx is ContextWrapper) {
         if (ctx is Activity) return ctx
@@ -81,7 +81,7 @@ private fun android.content.Context.findActivity(): Activity? {
  * re-record — it always reflects exactly what the user sees, with no GPU-driver-dependent
  * blank/black-frame risk.
  */
-private suspend fun captureWindowRegion(activity: Activity, bounds: Rect): Bitmap? {
+internal suspend fun captureWindowRegion(activity: Activity, bounds: Rect): Bitmap? {
     if (bounds.width() <= 0 || bounds.height() <= 0) return null
     val bitmap = Bitmap.createBitmap(bounds.width(), bounds.height(), Bitmap.Config.ARGB_8888)
     return try {
@@ -115,7 +115,8 @@ private suspend fun captureWindowRegion(activity: Activity, bounds: Rect): Bitma
 @Composable
 fun ProfileScreen(
     profileId: Long,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenPost: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as StoryframeApp
@@ -251,9 +252,9 @@ fun ProfileScreen(
                         showHighlightDialog = true
                     },
                     onAddHighlightClick = { editingHighlight = null; showHighlightDialog = true },
-                    // Tap opens the edit sheet; long-press-then-drag (handled inside
-                    // ProfilePreviewContent) is reserved solely for reordering now.
-                    onPostClick = { post -> editingPost = post },
+                    // Tap opens the post; hold (without moving) edits it; hold and drag reorders.
+                    onPostClick = { post -> onOpenPost(post.id) },
+                    onPostHold = { post -> if (!isVisitorMode) editingPost = post },
                     onAddPostClick = { tagged -> addPostForTagged = tagged; showAddPostSheet = true },
                     onReorderPosts = { newOrder -> viewModel.reorderPosts(newOrder) }
                 )
@@ -317,8 +318,11 @@ fun ProfileScreen(
     }
 
     if (showFollowedByManager) {
+        val savedAccounts by viewModel.accounts.collectAsState()
         FollowedByManagerDialog(
             entries = uiState.followedBy,
+            accounts = savedAccounts,
+            onAddAccount = { viewModel.addFollowedByAccount(it) },
             onDismiss = { showFollowedByManager = false },
             onAdd = { username, uri -> viewModel.addFollowedByPending(username, uri) },
             onEditUsername = { id, username -> viewModel.updateFollowedByUsername(id, username) },
@@ -345,7 +349,7 @@ fun ProfileScreen(
     }
 
     editingPost?.let { post ->
-        EditPostSheet(viewModel = viewModel, post = post, onDismiss = { editingPost = null })
+        EditPostSheet(viewModel = viewModel, post = post, onOpenPost = { onOpenPost(post.id) }, onDismiss = { editingPost = null })
     }
 
     // ---- Overflow read-only dialogs ----

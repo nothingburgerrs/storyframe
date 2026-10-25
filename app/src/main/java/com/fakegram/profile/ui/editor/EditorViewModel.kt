@@ -184,6 +184,17 @@ class EditorViewModel(
         }
     }
 
+    val accounts: StateFlow<List<com.fakegram.profile.data.AccountEntity>> = repository.accounts.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
+
+    fun addFollowedByAccount(account: com.fakegram.profile.data.AccountEntity) {
+        viewModelScope.launch {
+            val position = uiState.value.followedBy.size
+            repository.addFollowedBy(FollowedByEntity(profileId = profileId, username = account.username, avatarUri = account.avatarUri, position = position))
+        }
+    }
+
     fun deleteFollowedBy(id: Long) {
         viewModelScope.launch { repository.deleteFollowedBy(id) }
     }

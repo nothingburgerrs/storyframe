@@ -99,7 +99,17 @@ data class PostEntity(
     val position: Int = 0,
     val isPinned: Boolean = false,
     val isTagged: Boolean = false,
-    val isReel: Boolean = false
+    val isReel: Boolean = false,
+    // ---- shown when the post is opened ----
+    val caption: String = "",
+    val likeCount: String = "0",
+    val commentCount: String = "0",
+    val repostCount: String = "0",
+    val shareCount: String = "0",
+    /** Free text such as "September 13". */
+    val dateText: String = "",
+    /** Optional music line under the username, e.g. "JENNIE · FALLEN ANGEL". */
+    val musicText: String = ""
 )
 
 @Entity(
@@ -116,4 +126,36 @@ data class CarouselItemEntity(
     val postId: Long,
     val mediaUri: String,
     val position: Int = 0
+)
+
+@Entity(
+    tableName = "comments",
+    foreignKeys = [ForeignKey(
+        entity = PostEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["postId"],
+        onDelete = ForeignKey.CASCADE
+    )]
+)
+data class CommentEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val postId: Long,
+    val username: String = "username",
+    val avatarUri: String? = null,
+    val text: String = "",
+    /** Free text such as "1w". */
+    val timeText: String = "1w",
+    val likeCount: String = "0",
+    val isVerified: Boolean = false,
+    val hasTranslation: Boolean = true,
+    val position: Int = 0
+)
+
+/** A reusable placeholder account (name, avatar, verified badge) for comments, "followed by", etc. */
+@Entity(tableName = "accounts")
+data class AccountEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val username: String = "",
+    val avatarUri: String? = null,
+    val isVerified: Boolean = false
 )

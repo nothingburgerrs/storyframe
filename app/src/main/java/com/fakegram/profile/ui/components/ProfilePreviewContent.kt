@@ -1,5 +1,14 @@
 package com.fakegram.profile.ui.components
 
+import androidx.compose.animation.core.animateOffsetAsState
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.key
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -78,13 +87,17 @@ import com.fakegram.profile.ui.util.formatCount
 
 enum class StatField { POSTS, FOLLOWERS, FOLLOWING }
 
-/** Cycles Follow -> Follow Back -> Following -> Follow ... used only in "preview as visitor" mode. */
-enum class FollowState { FOLLOW, FOLLOW_BACK, FOLLOWING }
+/**
+ * Cycles Follow -> Follow Back -> Following -> Close Friends -> Follow ... used only in
+ * "preview as visitor" mode. FOLLOWING is the normal grey button; CLOSE_FRIENDS is the green one.
+ */
+enum class FollowState { FOLLOW, FOLLOW_BACK, FOLLOWING, CLOSE_FRIENDS }
 
 fun FollowState.next(): FollowState = when (this) {
     FollowState.FOLLOW -> FollowState.FOLLOW_BACK
     FollowState.FOLLOW_BACK -> FollowState.FOLLOWING
-    FollowState.FOLLOWING -> FollowState.FOLLOW
+    FollowState.FOLLOWING -> FollowState.CLOSE_FRIENDS
+    FollowState.CLOSE_FRIENDS -> FollowState.FOLLOW
 }
 
 /**
@@ -109,6 +122,7 @@ fun ProfilePreviewContent(
     onHighlightClick: (Long) -> Unit = {},
     onAddHighlightClick: () -> Unit = {},
     onPostClick: (PostEntity) -> Unit = {},
+    onPostHold: (PostEntity) -> Unit = {},
     onAddPostClick: (Boolean) -> Unit = {},
     onReorderPosts: (List<PostEntity>) -> Unit = {}
 ) {
@@ -209,6 +223,7 @@ fun ProfilePreviewContent(
             showAddTile = showAddAffordances && (selectedTab == ProfileTabKind.POSTS || selectedTab == ProfileTabKind.TAGGED),
             isTaggedTab = selectedTab == ProfileTabKind.TAGGED,
             onPostClick = onPostClick,
+            onPostHold = onPostHold,
             onAddClick = { onAddPostClick(selectedTab == ProfileTabKind.TAGGED) },
             onReorder = onReorderPosts
         )
@@ -461,7 +476,7 @@ private fun ActionButtonsRow(
                 Text("Share profile", color = colors.primaryText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
         } else {
-            val isBlue = followState != FollowState.FOLLOWING
+            val isBlue = followState == FollowState.FOLLOW || followState == FollowState.FOLLOW_BACK
             Button(
                 onClick = onFollowClick,
                 modifier = Modifier.weight(1f).height(34.dp),
@@ -474,9 +489,13 @@ private fun ActionButtonsRow(
                 val label = when (followState) {
                     FollowState.FOLLOW -> "Follow"
                     FollowState.FOLLOW_BACK -> "Follow Back"
-                    FollowState.FOLLOWING -> "Following  ▾"
+                    FollowState.FOLLOWING, FollowState.CLOSE_FRIENDS -> "Following  ▾"
                 }
-                val labelColor = if (followState == FollowState.FOLLOWING) Color(0xFF50AB4E) else Color.White
+                val labelColor = when (followState) {
+                    FollowState.CLOSE_FRIENDS -> Color(0xFF50AB4E)
+                    FollowState.FOLLOWING -> colors.primaryText
+                    else -> Color.White
+                }
                 Text(label, color = labelColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
             Button(
@@ -648,11 +667,14 @@ private fun PostsGridInteractive(
     showAddTile: Boolean,
     isTaggedTab: Boolean,
     onPostClick: (PostEntity) -> Unit,
+    onPostHold: (PostEntity) -> Unit,
     onAddClick: () -> Unit,
     onReorder: (List<PostEntity>) -> Unit
 ) {
     var orderedPosts by remember { mutableStateOf(posts) }
-    LaunchedEffect(posts) { orderedPosts = posts }
+    var draggedId by remember { mutableStateOf<Long?>(null) }
+    // Never let a database emission overwrite the local order while a finger is down.
+    LaunchedEffect(posts) { if (draggedId == null) orderedPosts = posts }
 
     if (posts.isEmpty() && !showAddTile) {
         Box(
@@ -666,80 +688,111 @@ private fun PostsGridInteractive(
         return
     }
 
+    val density = LocalDensity.current
+    val gapPx = with(density) { 1.5.dp.toPx() }
     val totalCells = orderedPosts.size + if (showAddTile) 1 else 0
-    val itemBounds = remember { mutableStateMapOf<Int, LayoutCoordinates>() }
-    var draggedIndex by remember { mutableStateOf(-1) }
-    var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    val rows = (totalCells + 2) / 3
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height((((totalCells + 2) / 3) * 160).dp),
-        horizontalArrangement = Arrangement.spacedBy(1.5.dp),
-        verticalArrangement = Arrangement.spacedBy(1.5.dp),
-        userScrollEnabled = false
-    ) {
-        items(orderedPosts.size, key = { orderedPosts[it].id }) { index ->
-            val post = orderedPosts[index]
-            // Tap opens the edit sheet (via .clickable below). Long-press-then-drag is reserved
-            // solely for reordering — a stationary long-press with no movement does nothing.
-            val dragModifier = if (allowReorder) {
-                Modifier.pointerInput(orderedPosts.size) {
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = {
-                            draggedIndex = index
-                            dragOffset = Offset.Zero
-                        },
-                        onDrag = { change, amount ->
-                            change.consume()
-                            dragOffset += amount
-                            val originBounds = itemBounds[draggedIndex] ?: return@detectDragGesturesAfterLongPress
-                            val currentCenter = originBounds.boundsInParent().center + dragOffset
-                            val targetIndex = itemBounds.entries.firstOrNull { (key, coords) ->
-                                key < orderedPosts.size && coords.boundsInParent().contains(currentCenter)
-                            }?.key
-                            if (targetIndex != null && targetIndex != draggedIndex &&
-                                targetIndex in orderedPosts.indices && draggedIndex in orderedPosts.indices
-                            ) {
-                                val mutable = orderedPosts.toMutableList()
-                                val moved = mutable.removeAt(draggedIndex)
-                                mutable.add(targetIndex, moved)
-                                orderedPosts = mutable
-                                dragOffset = Offset.Zero
-                                draggedIndex = targetIndex
-                            }
-                        },
-                        onDragEnd = {
-                            draggedIndex = -1
-                            dragOffset = Offset.Zero
-                            onReorder(orderedPosts)
-                        },
-                        onDragCancel = {
-                            draggedIndex = -1
-                            dragOffset = Offset.Zero
-                        }
-                    )
-                }
-            } else {
-                Modifier
-            }
-            Box(
-                modifier = Modifier
-                    .aspectRatio(GRID_ASPECT_RATIO)
-                    .onGloballyPositioned { coords -> itemBounds[index] = coords }
-                    .then(if (draggedIndex == index) Modifier.background(Color(0x33000000)) else Modifier)
-                    .then(dragModifier)
-                    .clickable { onPostClick(post) }
-            ) {
-                PostThumb(post = post, carouselCount = carouselCounts[post.id] ?: 0)
-            }
+    // A plain (non-lazy) grid where every cell is absolutely positioned from its index. Because
+    // the slot maths is trivial, one drag gesture on the container can turn a finger position
+    // straight into a target slot, the lifted tile follows the finger exactly, and the other
+    // tiles glide into their new slots.
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val cellW = (constraints.maxWidth - 2 * gapPx) / 3f
+        val cellH = cellW / GRID_ASPECT_RATIO
+        val cellWDp = with(density) { cellW.toDp() }
+        val cellHDp = with(density) { cellH.toDp() }
+        val heightDp = with(density) { (rows * cellH + (rows - 1).coerceAtLeast(0) * gapPx).toDp() }
+
+        fun slotOffset(index: Int) = Offset((index % 3) * (cellW + gapPx), (index / 3) * (cellH + gapPx))
+        fun slotAt(pos: Offset): Int {
+            val col = (pos.x / (cellW + gapPx)).toInt().coerceIn(0, 2)
+            val row = (pos.y / (cellH + gapPx)).toInt().coerceAtLeast(0)
+            return row * 3 + col
         }
-        if (showAddTile) {
-            item(key = "add_post_tile") {
+
+        var fingerPos by remember { mutableStateOf(Offset.Zero) }
+        var grabOffset by remember { mutableStateOf(Offset.Zero) }
+        var movedPx by remember { mutableStateOf(0f) }
+        var heldPost by remember { mutableStateOf<PostEntity?>(null) }
+
+        val dragModifier = if (allowReorder) {
+            Modifier.pointerInput(cellW, cellH) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { start ->
+                        val slot = slotAt(start)
+                        if (slot in orderedPosts.indices) {
+                            draggedId = orderedPosts[slot].id
+                            grabOffset = start - slotOffset(slot)
+                            fingerPos = start
+                            movedPx = 0f
+                            heldPost = orderedPosts[slot]
+                        }
+                    },
+                    onDrag = { change, amount ->
+                        change.consume()
+                        val id = draggedId ?: return@detectDragGesturesAfterLongPress
+                        fingerPos += amount
+                        movedPx += kotlin.math.abs(amount.x) + kotlin.math.abs(amount.y)
+                        val from = orderedPosts.indexOfFirst { it.id == id }
+                        val to = slotAt(fingerPos).coerceIn(0, orderedPosts.lastIndex)
+                        if (from >= 0 && to != from) {
+                            val mutable = orderedPosts.toMutableList()
+                            mutable.add(to, mutable.removeAt(from))
+                            orderedPosts = mutable
+                        }
+                    },
+                    onDragEnd = {
+                        draggedId = null
+                        // Held without moving: that is "edit this post"; moving it is a reorder.
+                        val held = heldPost
+                        if (movedPx < 24f && held != null) { orderedPosts = posts; onPostHold(held) } else onReorder(orderedPosts)
+                        heldPost = null
+                    },
+                    onDragCancel = {
+                        draggedId = null
+                        orderedPosts = posts
+                    }
+                )
+            }
+        } else {
+            Modifier
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(heightDp)
+                .then(dragModifier)
+        ) {
+            orderedPosts.forEachIndexed { index, post ->
+                key(post.id) {
+                    val isDragged = post.id == draggedId
+                    val slot by animateOffsetAsState(slotOffset(index), label = "gridSlot")
+                    val pos = if (isDragged) fingerPos - grabOffset else slot
+                    Box(
+                        modifier = Modifier
+                            .size(cellWDp, cellHDp)
+                            .offset { IntOffset(pos.x.roundToInt(), pos.y.roundToInt()) }
+                            .zIndex(if (isDragged) 1f else 0f)
+                            .graphicsLayer {
+                                val s = if (isDragged) 1.06f else 1f
+                                scaleX = s
+                                scaleY = s
+                                alpha = if (isDragged) 0.92f else 1f
+                            }
+                            .clickable { onPostClick(post) }
+                    ) {
+                        PostThumb(post = post, carouselCount = carouselCounts[post.id] ?: 0)
+                    }
+                }
+            }
+            if (showAddTile) {
+                val pos = slotOffset(orderedPosts.size)
                 Box(
                     modifier = Modifier
-                        .aspectRatio(GRID_ASPECT_RATIO)
+                        .size(cellWDp, cellHDp)
+                        .offset { IntOffset(pos.x.roundToInt(), pos.y.roundToInt()) }
                         .background(colors.pillBackground)
                         .border(1.dp, colors.border)
                         .clickable(onClick = onAddClick),

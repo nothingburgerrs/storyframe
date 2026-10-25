@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -112,7 +113,7 @@ fun AddPostSheet(viewModel: EditorViewModel, forTagged: Boolean = false, onDismi
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun EditPostSheet(viewModel: EditorViewModel, post: PostEntity, onDismiss: () -> Unit) {
+fun EditPostSheet(viewModel: EditorViewModel, post: PostEntity, onOpenPost: () -> Unit = {}, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState()
     val context = LocalContext.current
     var replaceCropUri by remember { mutableStateOf<Uri?>(null) }
@@ -143,6 +144,11 @@ fun EditPostSheet(viewModel: EditorViewModel, post: PostEntity, onDismiss: () ->
         ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Edit post", modifier = Modifier.padding(bottom = 12.dp))
+                Button(
+                    onClick = { onDismiss(); onOpenPost() },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Open post") }
+                Spacer(Modifier.height(8.dp))
                 if (post.mediaType != MediaType.CAROUSEL) {
                     OutlinedButton(
                         onClick = { viewModel.changeMediaTypeToCarousel(post); onDismiss() },

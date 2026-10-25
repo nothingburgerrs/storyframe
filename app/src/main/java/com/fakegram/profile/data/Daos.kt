@@ -121,3 +121,36 @@ interface CarouselItemDao {
     @Query("DELETE FROM carousel_items WHERE postId = :postId")
     suspend fun deleteForPost(postId: Long)
 }
+
+@Dao
+interface CommentDao {
+    @Query("SELECT * FROM comments WHERE postId = :postId ORDER BY position ASC")
+    fun observeForPost(postId: Long): Flow<List<CommentEntity>>
+
+    @Query("SELECT * FROM comments WHERE postId = :postId ORDER BY position ASC")
+    suspend fun getForPost(postId: Long): List<CommentEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(comment: CommentEntity): Long
+
+    @Update
+    suspend fun update(comment: CommentEntity)
+
+    @Query("DELETE FROM comments WHERE id = :id")
+    suspend fun deleteById(id: Long)
+}
+
+@Dao
+interface AccountDao {
+    @Query("SELECT * FROM accounts ORDER BY username COLLATE NOCASE ASC")
+    fun observeAll(): Flow<List<AccountEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(account: AccountEntity): Long
+
+    @Update
+    suspend fun update(account: AccountEntity)
+
+    @Query("DELETE FROM accounts WHERE id = :id")
+    suspend fun deleteById(id: Long)
+}
